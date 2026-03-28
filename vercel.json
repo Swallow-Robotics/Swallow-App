@@ -1,0 +1,8 @@
+{
+  "buildCommand": "cd client && yarn install && yarn build",
+  "outputDirectory": "client/build",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
