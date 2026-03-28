@@ -1,0 +1,90 @@
+import React, { useCallback } from 'react';
+import { useAuth } from '../../context';
+import { usePermissionToast } from '../common/PermissionToast';
+import { getApiOrigin } from '../../utils/apiEnv';
+
+const apiBase = getApiOrigin();
+
+const buildProjectUrl = projectId =>
+  `${(apiBase || '').replace(/\/$/, '')}/api/v1/projects/${projectId}`;
+
+const ProjectDashboard = ({ onProjectUpdated = () => {} }) => {
+  const { activeProject, roleForActiveProject } = useAuth();
+  const activeProjectId = activeProject?.id || activeProject || null;
+  const role = roleForActiveProject ? roleForActiveProject() : null;
+  const normalizedRole = (role || '').toLowerCase();
+  const canManage =
+    normalizedRole === 'owner' || normalizedRole === 'administrator';
+  const canArchive = normalizedRole === 'owner';
+
+  const { Toast, showForbiddenToast } = usePermissionToast();
+
+  const handleDelete = useCallback(async () => {
+    if (!activeProjectId) return;
+    const accessToken = localStorage.getItem('access_token') || '';
+    try {
+      const res = await fetch(buildProjectUrl(activeProjectId), {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+      });
+      if (res.status === 403) {
+        showForbiddenToast();
+        return;
+      }
+      if (!res.ok) {
+        throw new Error('Failed to archive project');
+      }
+      onProjectUpdated();
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'test') {
+        console.error(err);
+      }
+      showForbiddenToast();
+    }
+  }, [activeProjectId, onProjectUpdated, showForbiddenToast]);
+
+  if (!activeProjectId) {
+    return (
+      <div data-testid="project-dashboard-empty">
+        No active project selected.
+        {Toast}
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="project-dashboard">
+      <h3>Project Controls</h3>
+      <p data-testid="project-role">Role: {normalizedRole || 'unknown'}</p>
+      {canManage && (
+        <button
+          type="button"
+          data-testid="edit-project"
+          onClick={onProjectUpdated}
+        >
+          Edit Project
+        </button>
+      )}
+      {canArchive && (
+        <button
+          type="button"
+          data-testid="delete-project"
+          onClick={handleDelete}
+        >
+          Archive Project
+        </button>
+      )}
+      {!canManage && (
+        <div data-testid="project-readonly">
+          Project editing is limited to owners and administrators.
+        </div>
+      )}
+      {Toast}
+    </div>
+  );
+};
+
+export default ProjectDashboard;

@@ -1,0 +1,30 @@
+# NOTES
+# If you’re installing or running Python stuff → make sure you see (venv) in your terminal
+#   Activate venv -> source venv/bin/activate
+
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node / React (yarn only — ignore all npm lockfiles)
+node_modules/
+build/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Env files (keep .env.example for onboarding)
+.env*
+!.env.example
+
+# Local credentials (explicitly ignored)
+.git/keys.env
