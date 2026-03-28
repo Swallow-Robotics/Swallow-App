@@ -51,7 +51,7 @@
   },
   "devDependencies": {
     "craco-cesium": "^1.2.0",
-    "kill-port": "^1.0.1",
+    "kill-port": "^1.0.1"
   },
   "jest": {
     "coverageThreshold": {
