@@ -190,6 +190,7 @@ const FlyMapPage = () => {
       return Cartesian3.fromDegrees(selectedProjectCoord.lon, selectedProjectCoord.lat, 0);
     }
     return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalPosition, gps, selectedProjectCoord]);
 
   const droneHeadingRad = useMemo(() => {
@@ -285,6 +286,7 @@ const FlyMapPage = () => {
         // ignore
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getProjectHome = useCallback(() => {

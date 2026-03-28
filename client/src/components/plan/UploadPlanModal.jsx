@@ -258,6 +258,7 @@ const UploadPlanModal = ({
       map.remove();
       mapInstanceRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   // Basemap toggle
