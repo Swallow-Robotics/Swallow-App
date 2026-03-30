@@ -14,12 +14,14 @@ import React, {
 import { Viewer, Entity, Cesium3DTileset } from 'resium';
 import {
   Cartesian3,
-  SceneMode,
   HeadingPitchRoll,
+  HeightReference,
+  SceneMode,
   Transforms,
   Math as CesiumMath,
   IonResource,
   Terrain,
+  VerticalOrigin,
 } from 'cesium';
 import { useAuth, useMavlinkTelemetry } from '../context';
 import { useProjectMapData } from '../hooks/useProjectMapData';
@@ -30,11 +32,53 @@ const MAX_CAMERA_HEIGHT = 6_000_000;
 const DEFAULT_PROJECT_HEIGHT = 1000;
 const WORLD_TERRAIN = Terrain.fromWorldTerrain();
 
+const DRONE_ICON = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">` +
+    `<line x1="32" y1="32" x2="12" y2="12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>` +
+    `<line x1="32" y1="32" x2="52" y2="12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>` +
+    `<line x1="32" y1="32" x2="12" y2="52" stroke="#fff" stroke-width="3" stroke-linecap="round"/>` +
+    `<line x1="32" y1="32" x2="52" y2="52" stroke="#fff" stroke-width="3" stroke-linecap="round"/>` +
+    `<circle cx="12" cy="12" r="9" fill="rgba(0,0,0,0.4)" stroke="#4af" stroke-width="2"/>` +
+    `<circle cx="52" cy="12" r="9" fill="rgba(0,0,0,0.4)" stroke="#4af" stroke-width="2"/>` +
+    `<circle cx="12" cy="52" r="9" fill="rgba(0,0,0,0.4)" stroke="#4af" stroke-width="2"/>` +
+    `<circle cx="52" cy="52" r="9" fill="rgba(0,0,0,0.4)" stroke="#4af" stroke-width="2"/>` +
+    `<circle cx="32" cy="32" r="6" fill="#222" stroke="#fff" stroke-width="2"/>` +
+    `<polygon points="32,26 35,34 32,32 29,34" fill="#f44"/>` +
+  `</svg>`
+)}`;
+
 // Persists across unmount/remount so the camera restores on tab switch
 let lastCameraPosition = null; // { lat, lng, height }
 let projectHome = null; // { lat, lng } — the project center for Home button / morph
 let lastSceneMode = SceneMode.SCENE2D;
 let isMorphing = false;
+
+const DebugSection = ({ label, children }) => (
+  <div style={{ marginBottom: 6 }}>
+    <div style={{ fontWeight: 600, opacity: 0.6, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      {label}
+    </div>
+    <div style={{ paddingLeft: 4 }}>{children}</div>
+  </div>
+);
+
+const formatValue = (v) => {
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(4);
+  return String(v ?? '—');
+};
+
+const DebugFields = ({ obj, omit = [] }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 1 }}>
+    {Object.entries(obj)
+      .filter(([k]) => !omit.includes(k))
+      .map(([k, v]) => (
+        <React.Fragment key={k}>
+          <span style={{ opacity: 0.5 }}>{k}</span>
+          <span style={{ fontFamily: 'monospace' }}>{formatValue(v)}</span>
+        </React.Fragment>
+      ))}
+  </div>
+);
 
 const FlyMapPage = () => {
   const { activeProject, projects, setActiveProject } = useAuth();
@@ -42,21 +86,31 @@ const FlyMapPage = () => {
     isSupported: serialSupported,
     connectionStatus: telemetryStatus,
     error: telemetryError,
+    errorLog,
     heartbeat,
     gps,
     sysStatus,
     attitude,
     globalPosition,
+    vfrHud,
+    statusMessages,
     rawMessageCount,
+    messageRate,
+    unknownMsgIds,
     connect: connectTelemetry,
     disconnect: disconnectTelemetry,
+    clearErrorLog,
+    clearStatusMessages,
   } = useMavlinkTelemetry();
   const activeProjectId = activeProject?.id || activeProject || null;
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [showConnectedNotification, setShowConnectedNotification] =
     useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [show3DTiles, setShow3DTiles] = useState(false);
   const viewerRef = useRef(null);
   const hasAutoFitRef = useRef(false);
+  const droneBtnRef = useRef(null);
   const [viewerReady, setViewerReady] = useState(false);
   const [is3D, setIs3D] = useState(lastSceneMode === SceneMode.SCENE3D);
 
@@ -64,6 +118,39 @@ const FlyMapPage = () => {
     activeProjectId,
     refreshCounter
   );
+
+  // Inject "center on drone" button into the Cesium toolbar after the Home button
+  useEffect(() => {
+    if (!viewerReady) return;
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer) return;
+    const toolbar = viewer.container.querySelector('.cesium-viewer-toolbar');
+    const homeBtn = toolbar?.querySelector('.cesium-home-button');
+    if (!toolbar || !homeBtn) return;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cesium-button cesium-toolbar-button';
+    btn.title = 'Center on drone';
+    btn.style.display = 'none';
+    btn.style.alignItems = 'center';
+    btn.style.justifyContent = 'center';
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">' +
+        '<line x1="12" y1="12" x2="4" y2="4"/>' +
+        '<line x1="12" y1="12" x2="20" y2="4"/>' +
+        '<line x1="12" y1="12" x2="4" y2="20"/>' +
+        '<line x1="12" y1="12" x2="20" y2="20"/>' +
+        '<circle cx="4" cy="4" r="2.5" stroke-width="1.5"/>' +
+        '<circle cx="20" cy="4" r="2.5" stroke-width="1.5"/>' +
+        '<circle cx="4" cy="20" r="2.5" stroke-width="1.5"/>' +
+        '<circle cx="20" cy="20" r="2.5" stroke-width="1.5"/>' +
+        '<circle cx="12" cy="12" r="2" fill="#fff" stroke="none"/>' +
+      '</svg>';
+    homeBtn.after(btn);
+    droneBtnRef.current = btn;
+    return () => { btn.remove(); droneBtnRef.current = null; };
+  }, [viewerReady]);
 
   // Show a short "connected" notification when telemetry radio connects
   useEffect(() => {
@@ -178,13 +265,16 @@ const FlyMapPage = () => {
   // TODO: remove TEST_DRONE after verifying model appearance
   const TEST_DRONE = true;
 
-  // Derive drone position and heading from live telemetry
+  // Derive drone position and heading from live telemetry.
+  // globalPosition.relative_alt is height above home (AGL-ish), preferred for display.
+  // Falls back to MSL alt, then 0.
   const dronePosition = useMemo(() => {
     const src = globalPosition ?? gps;
     if (src && src.lat != null && src.lon != null &&
         Number.isFinite(src.lat) && Number.isFinite(src.lon) &&
         !(src.lat === 0 && src.lon === 0)) {
-      return Cartesian3.fromDegrees(src.lon, src.lat, 0);
+      const alt = globalPosition?.relative_alt ?? src.alt ?? 0;
+      return Cartesian3.fromDegrees(src.lon, src.lat, Number.isFinite(alt) ? alt : 0);
     }
     if (TEST_DRONE && selectedProjectCoord) {
       return Cartesian3.fromDegrees(selectedProjectCoord.lon, selectedProjectCoord.lat, 0);
@@ -192,6 +282,15 @@ const FlyMapPage = () => {
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalPosition, gps, selectedProjectCoord]);
+
+  // When altitude is near zero (on the ground), clamp to terrain so the
+  // model sits on the surface instead of being buried in it.
+  const droneHeightRef = useMemo(() => {
+    const alt = globalPosition?.relative_alt ?? gps?.alt ?? 0;
+    return (alt != null && Number.isFinite(alt) && Math.abs(alt) > 0.5)
+      ? HeightReference.NONE
+      : HeightReference.CLAMP_TO_GROUND;
+  }, [globalPosition, gps]);
 
   const droneHeadingRad = useMemo(() => {
     if (globalPosition?.hdg != null && globalPosition.hdg !== 0)
@@ -340,6 +439,24 @@ const FlyMapPage = () => {
     });
   }, [getProjectHome]);
 
+  const centerOnDrone = useCallback(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer || viewer.isDestroyed()) return;
+    const src = globalPosition ?? gps;
+    if (!src || src.lat == null || src.lon == null ||
+        !Number.isFinite(src.lat) || !Number.isFinite(src.lon) ||
+        (src.lat === 0 && src.lon === 0)) return;
+    const dest = Cartesian3.fromDegrees(src.lon, src.lat, DEFAULT_PROJECT_HEIGHT);
+    viewer.camera.flyTo({ destination: dest, duration: 1.0 });
+  }, [globalPosition, gps]);
+
+  useEffect(() => {
+    const btn = droneBtnRef.current;
+    if (!btn) return;
+    btn.style.display = dronePosition ? 'flex' : 'none';
+    btn.onclick = centerOnDrone;
+  }, [dronePosition, centerOnDrone]);
+
   const handleProjectChange = useCallback(
     e => {
       const nextId = e.target.value;
@@ -421,6 +538,22 @@ const FlyMapPage = () => {
           >
             {is3D ? '3D' : '2D'}
           </button>
+          {is3D && (
+            <button
+              type="button"
+              onClick={() => setShow3DTiles(v => !v)}
+              style={{
+                padding: '4px 10px',
+                cursor: 'pointer',
+                fontSize: 11,
+                opacity: show3DTiles ? 1 : 0.7,
+                background: show3DTiles ? 'rgba(255,255,255,0.15)' : undefined,
+              }}
+              title="Toggle Google 3D Tiles"
+            >
+              3D Tiles {show3DTiles ? 'ON' : 'OFF'}
+            </button>
+          )}
           {serialSupported && telemetryStatus === 'disconnected' && (
             <button
               type="button"
@@ -439,7 +572,7 @@ const FlyMapPage = () => {
               >
                 Disconnect
               </button>
-              <span>MAVLink · {rawMessageCount} msgs</span>
+              <span>MAVLink · {messageRate} msg/s</span>
             </>
           )}
           {serialSupported && telemetryStatus === 'connecting' && (
@@ -447,6 +580,22 @@ const FlyMapPage = () => {
           )}
           {serialSupported && telemetryStatus === 'error' && (
             <span style={{ color: '#f88' }}>{telemetryError || 'Error'}</span>
+          )}
+          {serialSupported && (
+            <button
+              type="button"
+              onClick={() => setShowDebug(d => !d)}
+              style={{
+                padding: '4px 10px',
+                cursor: 'pointer',
+                fontSize: 11,
+                opacity: showDebug ? 1 : 0.7,
+                background: showDebug ? 'rgba(255,255,255,0.15)' : undefined,
+              }}
+              title="Toggle debug panel"
+            >
+              Debug
+            </button>
           )}
         </div>
         {showConnectedNotification && (
@@ -475,6 +624,120 @@ const FlyMapPage = () => {
             )}
           </div>
         )}
+        {showDebug && (
+          <div
+            style={{
+              marginTop: 4,
+              background: 'rgba(0,0,0,0.82)',
+              borderRadius: 6,
+              padding: '10px 12px',
+              maxHeight: 420,
+              overflowY: 'auto',
+              fontSize: 11,
+              lineHeight: 1.5,
+              minWidth: 300,
+              maxWidth: 380,
+              border: '1px solid rgba(255,255,255,0.12)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontWeight: 700, fontSize: 12 }}>Drone Debug</span>
+              <span style={{ opacity: 0.5 }}>{rawMessageCount} msgs</span>
+            </div>
+            <DebugSection label="Status">
+              <span style={{ color: telemetryStatus === 'connected' ? '#8f8' : telemetryStatus === 'error' ? '#f88' : '#ff8' }}>
+                {telemetryStatus}
+              </span>
+              {telemetryError && <span style={{ color: '#f88', marginLeft: 8 }}>{telemetryError}</span>}
+            </DebugSection>
+            <DebugSection label="Heartbeat">
+              {heartbeat
+                ? <DebugFields obj={heartbeat} omit={['type']} />
+                : <span style={{ opacity: 0.4 }}>none</span>}
+            </DebugSection>
+            <DebugSection label="GPS">
+              {gps
+                ? <DebugFields obj={gps} omit={['type']} />
+                : <span style={{ opacity: 0.4 }}>none</span>}
+            </DebugSection>
+            <DebugSection label="Global Position">
+              {globalPosition
+                ? <DebugFields obj={globalPosition} omit={['type']} />
+                : <span style={{ opacity: 0.4 }}>none</span>}
+            </DebugSection>
+            <DebugSection label="Attitude">
+              {attitude
+                ? <DebugFields obj={attitude} omit={['type']} />
+                : <span style={{ opacity: 0.4 }}>none</span>}
+            </DebugSection>
+            <DebugSection label="System Status">
+              {sysStatus
+                ? <DebugFields obj={sysStatus} omit={['type']} />
+                : <span style={{ opacity: 0.4 }}>none</span>}
+            </DebugSection>
+            <DebugSection label="VFR HUD">
+              {vfrHud
+                ? <DebugFields obj={vfrHud} omit={['type']} />
+                : <span style={{ opacity: 0.4 }}>none</span>}
+            </DebugSection>
+            {statusMessages.length > 0 && (
+              <DebugSection label={`FC Messages (${statusMessages.length})`}>
+                <div>
+                  {statusMessages.slice(0, 15).map((m, i) => (
+                    <div key={i} style={{ marginBottom: 2, color: m.severity <= 3 ? '#f88' : m.severity <= 5 ? '#ff8' : '#ccc' }}>
+                      <span style={{ opacity: 0.5, marginRight: 6 }}>
+                        {new Date(m.ts).toLocaleTimeString()}
+                      </span>
+                      <span style={{ opacity: 0.5, marginRight: 4 }}>
+                        {['EMERG','ALERT','CRIT','ERR','WARN','NOTICE','INFO','DEBUG'][m.severity] ?? m.severity}
+                      </span>
+                      {m.text}
+                    </div>
+                  ))}
+                  {statusMessages.length > 15 && (
+                    <span style={{ opacity: 0.4 }}>…and {statusMessages.length - 15} more</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={clearStatusMessages}
+                    style={{ marginTop: 4, fontSize: 10, padding: '2px 6px', cursor: 'pointer', opacity: 0.7 }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </DebugSection>
+            )}
+            {unknownMsgIds.length > 0 && (
+              <DebugSection label="Unhandled Msg IDs">
+                <span style={{ opacity: 0.6 }}>{unknownMsgIds.join(', ')}</span>
+              </DebugSection>
+            )}
+            {errorLog.length > 0 && (
+              <DebugSection label={`Errors (${errorLog.length})`}>
+                <div>
+                  {errorLog.slice(0, 10).map((e, i) => (
+                    <div key={i} style={{ color: '#f88', marginBottom: 2 }}>
+                      <span style={{ opacity: 0.5, marginRight: 6 }}>
+                        {new Date(e.ts).toLocaleTimeString()}
+                      </span>
+                      {e.message}
+                    </div>
+                  ))}
+                  {errorLog.length > 10 && (
+                    <span style={{ opacity: 0.4 }}>…and {errorLog.length - 10} more</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={clearErrorLog}
+                    style={{ marginTop: 4, fontSize: 10, padding: '2px 6px', cursor: 'pointer', opacity: 0.7 }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </DebugSection>
+            )}
+          </div>
+        )}
       </div>
       <Viewer
         ref={viewerRef}
@@ -487,7 +750,7 @@ const FlyMapPage = () => {
         vrButton={false}
         terrain={WORLD_TERRAIN}
       >
-        <Cesium3DTileset url={IonResource.fromAssetId(2275207)} show={is3D} />
+        <Cesium3DTileset url={IonResource.fromAssetId(2275207)} show={show3DTiles} />
         {hasProjectPin && (
           <Entity
             name="Project"
@@ -518,15 +781,30 @@ const FlyMapPage = () => {
             />
           );
         })}
-        {dronePosition && (
+        {dronePosition && is3D && (
           <Entity
             name="Drone"
             position={dronePosition}
             orientation={droneOrientation}
             model={{
-              uri: `${process.env.PUBLIC_URL}/models/CesiumDrone.glb`,
-              minimumPixelSize: 64,
-              maximumScale: 200,
+              uri: `${process.env.PUBLIC_URL}/models/drone.glb`,
+              minimumPixelSize: 96,
+              heightReference: droneHeightRef,
+            }}
+            description="<p>Live drone position from MAVLink telemetry</p>"
+          />
+        )}
+        {dronePosition && !is3D && (
+          <Entity
+            name="Drone"
+            position={dronePosition}
+            billboard={{
+              image: DRONE_ICON,
+              scale: 0.7,
+              heightReference: HeightReference.NONE,
+              verticalOrigin: VerticalOrigin.CENTER,
+              rotation: -droneHeadingRad,
+              alignedAxis: Cartesian3.UNIT_Z,
             }}
             description="<p>Live drone position from MAVLink telemetry</p>"
           />

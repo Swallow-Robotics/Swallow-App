@@ -1,16 +1,19 @@
 /**
  * MAVLink telemetry over Web Serial API.
  * Runs a background read loop from a serial port (e.g. telemetry radio),
- * parses MAVLink v1 packets and invokes onMessage for each decoded message.
+ * parses MAVLink v1 and v2 packets and invokes onMessage for each decoded message.
  *
  * Requires: user gesture to call requestAndConnect() (browser security).
  * Supported in Chrome/Edge (Web Serial API).
  */
 
 const MAVLINK_STX_V1 = 0xfe;
+const MAVLINK_STX_V2 = 0xfd;
 
 // MAVLink v1 header: STX(1) + len(1) + seq(1) + sysid(1) + compid(1) + msgid(1) = 6
-const HEADER_LEN = 6;
+const V1_HEADER_LEN = 6;
+// MAVLink v2 header: STX(1) + len(1) + incompat(1) + compat(1) + seq(1) + sysid(1) + compid(1) + msgid(3) = 10
+const V2_HEADER_LEN = 10;
 
 // Common message IDs (MAVLink common.xml)
 export const MAV_MSG = {
@@ -19,6 +22,8 @@ export const MAV_MSG = {
   GPS_RAW_INT: 24,
   ATTITUDE: 30,
   GLOBAL_POSITION_INT: 33,
+  VFR_HUD: 74,
+  STATUSTEXT: 253,
 };
 
 function readUint8(buf, offset) {
@@ -45,11 +50,21 @@ function readInt32(buf, offset) {
 }
 function readUint32(buf, offset) {
   return (
-    (buf[offset] ?? 0) |
+    ((buf[offset] ?? 0) |
     ((buf[offset + 1] ?? 0) << 8) |
     ((buf[offset + 2] ?? 0) << 16) |
-    ((buf[offset + 3] ?? 0) << 24)
+    ((buf[offset + 3] ?? 0) << 24)) >>> 0
   );
+}
+
+function readString(buf, offset, maxLen) {
+  let str = '';
+  for (let i = 0; i < maxLen; i++) {
+    const c = buf[offset + i];
+    if (c === 0 || c === undefined) break;
+    str += String.fromCharCode(c);
+  }
+  return str;
 }
 function readFloat32(buf, offset) {
   const view = new DataView(new ArrayBuffer(4));
@@ -61,7 +76,8 @@ function readFloat32(buf, offset) {
 }
 
 /**
- * Decode common MAVLink v1 messages into a plain object for state.
+ * Decode common MAVLink messages into a plain object for state.
+ * Payload layout is the same for v1 and v2 (wire-order by field size).
  * Returns null if message ID is unknown or payload too short.
  */
 export function decodeMavlinkMessage(messageId, payload) {
@@ -129,6 +145,26 @@ export function decodeMavlinkMessage(messageId, payload) {
         hdg: readUint16(buf, 26) / 100, // centideg -> deg
       };
     }
+    case MAV_MSG.VFR_HUD: {
+      if (buf.length < 20) return null;
+      return {
+        type: 'VFR_HUD',
+        airspeed: readFloat32(buf, 0),
+        groundspeed: readFloat32(buf, 4),
+        alt: readFloat32(buf, 8),
+        climb: readFloat32(buf, 12),
+        heading: readInt16(buf, 16),
+        throttle: readUint16(buf, 18),
+      };
+    }
+    case MAV_MSG.STATUSTEXT: {
+      if (buf.length < 2) return null;
+      return {
+        type: 'STATUSTEXT',
+        severity: readUint8(buf, 0),
+        text: readString(buf, 1, 50),
+      };
+    }
     default:
       return { type: 'UNKNOWN', messageId, payloadLength: buf.length };
   }
@@ -159,8 +195,8 @@ export async function requestSerialPort(baudRate = 57600) {
 }
 
 /**
- * Run a background read loop on an open SerialPort. Parses MAVLink v1 packets
- * and calls onMessage(messageId, payload) for each complete packet.
+ * Run a background read loop on an open SerialPort. Parses MAVLink v1 and v2
+ * packets and calls onMessage(messageId, payload) for each complete packet.
  * Runs until stopRef.current is set to true or the port is closed.
  *
  * @param {SerialPort} port - opened serial port
@@ -191,29 +227,53 @@ export async function runMavlinkReadLoop(
         bytesInBuffer++;
       }
 
-      // Parse one or more MAVLink v1 frames from buffer
       let consumed = 0;
       while (consumed < bytesInBuffer) {
         const start = consumed;
-        if (buffer[start] !== MAVLINK_STX_V1) {
-          consumed++;
-          continue;
-        }
-        const payloadLen = buffer[start + 1] ?? 0;
-        const packetLen = HEADER_LEN + payloadLen + 2; // +2 for CRC
-        if (payloadLen > 255 || start + packetLen > bytesInBuffer) break;
+        const stx = buffer[start];
 
-        const payload = new Uint8Array(payloadLen);
-        for (let j = 0; j < payloadLen; j++) {
-          payload[j] = buffer[start + HEADER_LEN + j] ?? 0;
+        if (stx === MAVLINK_STX_V2) {
+          if (bytesInBuffer - start < V2_HEADER_LEN) break;
+          const payloadLen = buffer[start + 1] ?? 0;
+          const incompatFlags = buffer[start + 2] ?? 0;
+          const signatureLen = (incompatFlags & 0x01) ? 13 : 0;
+          const packetLen = V2_HEADER_LEN + payloadLen + 2 + signatureLen;
+          if (payloadLen > 255 || start + packetLen > bytesInBuffer) break;
+
+          const messageId =
+            (buffer[start + 7] ?? 0) |
+            ((buffer[start + 8] ?? 0) << 8) |
+            ((buffer[start + 9] ?? 0) << 16);
+          const payload = new Uint8Array(payloadLen);
+          for (let j = 0; j < payloadLen; j++) {
+            payload[j] = buffer[start + V2_HEADER_LEN + j] ?? 0;
+          }
+          try {
+            onMessage(messageId, payload);
+          } catch (e) {
+            onError?.(e);
+          }
+          consumed += packetLen;
+        } else if (stx === MAVLINK_STX_V1) {
+          if (bytesInBuffer - start < V1_HEADER_LEN) break;
+          const payloadLen = buffer[start + 1] ?? 0;
+          const packetLen = V1_HEADER_LEN + payloadLen + 2;
+          if (payloadLen > 255 || start + packetLen > bytesInBuffer) break;
+
+          const messageId = buffer[start + 5] ?? 0;
+          const payload = new Uint8Array(payloadLen);
+          for (let j = 0; j < payloadLen; j++) {
+            payload[j] = buffer[start + V1_HEADER_LEN + j] ?? 0;
+          }
+          try {
+            onMessage(messageId, payload);
+          } catch (e) {
+            onError?.(e);
+          }
+          consumed += packetLen;
+        } else {
+          consumed++;
         }
-        const messageId = buffer[start + 5] ?? 0;
-        try {
-          onMessage(messageId, payload);
-        } catch (e) {
-          onError?.(e);
-        }
-        consumed += packetLen;
       }
 
       if (consumed > 0) {
