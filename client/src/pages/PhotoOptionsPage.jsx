@@ -51,7 +51,7 @@ const PhotoOptionsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const backTarget = useMemo(
-    () => (location.state?.from === 'map' ? '/map' : '/photos'),
+    () => (location.state?.from === 'map' ? '/view/map' : '/view/photos'),
     [location.state]
   );
   const { projects, roleForActiveProject } = useAuth();
@@ -226,7 +226,7 @@ const PhotoOptionsPage = () => {
           },
         });
         if (res.ok) {
-          navigate('/photos');
+          navigate('/view/photos');
           return;
         }
       } catch (e) {
@@ -504,7 +504,7 @@ const PhotoOptionsPage = () => {
                     padding: 'var(--space-xs) var(--space-sm)',
                     fontSize: 'var(--font-size-sm)',
                   }}
-                  onClick={() => navigate('/map')}
+                  onClick={() => navigate('/view/map')}
                 >
                   Open Map
                 </button>
@@ -516,7 +516,7 @@ const PhotoOptionsPage = () => {
                   width: '100%',
                   cursor: 'pointer',
                 }}
-                onClick={() => navigate('/map')}
+                onClick={() => navigate('/view/map')}
               />
             </div>
           </div>

@@ -20,7 +20,7 @@ const EmailConfirmedPage = () => {
             <button
               type="button"
               className="btn-primary"
-              onClick={() => navigate('/map', { replace: true })}
+              onClick={() => navigate('/view/map', { replace: true })}
             >
               Continue to Portal
             </button>

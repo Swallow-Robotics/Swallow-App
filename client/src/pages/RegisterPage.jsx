@@ -38,7 +38,7 @@ const RegisterPage = () => {
         });
         return;
       }
-      navigate('/map', { replace: true });
+      navigate('/view/map', { replace: true });
     } catch (err) {
       setError(err?.message || 'Unable to register');
     } finally {

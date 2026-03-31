@@ -14,10 +14,10 @@ const HomePage = () => {
       </p>
 
       <div className="home-actions">
-        <Link to="/map" className="btn btn-primary">
+        <Link to="/view/map" className="btn btn-primary">
           View Map
         </Link>
-        <Link to="/photos" className="btn btn-secondary">
+        <Link to="/view/photos" className="btn btn-secondary">
           Photos
         </Link>
       </div>

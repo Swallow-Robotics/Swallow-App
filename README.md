@@ -51,7 +51,7 @@ Edit `server/.env` with your credentials:
 
 ```bash
 cd client
-cp env.example .env.local
+cp .env.example .env.local
 ```
 
 Edit `client/.env.local` with your values:

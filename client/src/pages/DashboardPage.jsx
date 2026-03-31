@@ -391,7 +391,7 @@ const DashboardPage = () => {
                         padding: 'var(--space-xs) var(--space-sm)',
                         fontSize: 'var(--font-size-sm)',
                       }}
-                      onClick={() => navigate('/map')}
+                      onClick={() => navigate('/view/map')}
                     >
                       Open Map
                     </button>
@@ -403,13 +403,13 @@ const DashboardPage = () => {
                       width: '100%',
                       cursor: 'pointer',
                     }}
-                    onClick={() => navigate('/map')}
+                    onClick={() => navigate('/view/map')}
                     role="button"
                     tabIndex={0}
                     onKeyDown={e => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        navigate('/map');
+                        navigate('/view/map');
                       }
                     }}
                   />
@@ -448,7 +448,7 @@ const DashboardPage = () => {
                     fontSize: 'var(--font-size-sm)',
                   }}
                   onClick={() =>
-                    navigate(`/projects/${activeProjectId}/members`)
+                    navigate(`/view/projects/${activeProjectId}/members`)
                   }
                 >
                   Add Members

@@ -37,7 +37,7 @@ const ArchivedProjectsPage = () => {
   const handleActivate = useCallback(
     project => {
       setActiveProject(project);
-      navigate('/map');
+      navigate('/view/map');
     },
     [navigate, setActiveProject]
   );
@@ -45,7 +45,7 @@ const ArchivedProjectsPage = () => {
   const handleMembers = useCallback(
     project => {
       if (project?.id) {
-        navigate(`/projects/${project.id}/members`);
+        navigate(`/view/projects/${project.id}/members`);
       }
     },
     [navigate]
@@ -105,7 +105,7 @@ const ArchivedProjectsPage = () => {
           <div className="page-header__left">
             <button
               type="button"
-              onClick={() => navigate('/projects')}
+              onClick={() => navigate('/view/projects')}
               className="btn-secondary"
             >
               ← Back

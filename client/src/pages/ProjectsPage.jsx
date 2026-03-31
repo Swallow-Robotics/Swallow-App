@@ -29,7 +29,7 @@ const ProjectsPage = () => {
   const handleActivate = useCallback(
     project => {
       setActiveProject(project);
-      navigate('/map');
+      navigate('/view/map');
     },
     [navigate, setActiveProject]
   );
@@ -60,7 +60,7 @@ const ProjectsPage = () => {
   const handleMembers = useCallback(
     project => {
       if (project?.id) {
-        navigate(`/projects/${project.id}/members`);
+        navigate(`/view/projects/${project.id}/members`);
       }
     },
     [navigate]
@@ -119,7 +119,7 @@ const ProjectsPage = () => {
         await refreshProjects({ redirectWhenEmpty: false, force: true });
         setActiveProject(project);
         setIsModalOpen(false);
-        navigate('/dashboard');
+        navigate('/view/dashboard');
       } catch (err) {
         setError(
           err?.payload?.error ||
@@ -137,7 +137,7 @@ const ProjectsPage = () => {
   );
 
   const handleArchived = useCallback(() => {
-    navigate('/projects/archived');
+    navigate('/view/projects/archived');
   }, [navigate]);
 
   return (

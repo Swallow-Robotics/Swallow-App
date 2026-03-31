@@ -26,3 +26,9 @@
   flex: 1;
   min-height: min-content;
 }
+
+@media (min-width: 1280px) {
+  .page-layout {
+    padding-top: var(--space-lg);
+  }
+}

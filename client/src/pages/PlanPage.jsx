@@ -500,7 +500,7 @@ const PlanPage = () => {
               const nextId = e.target.value || null;
               if (nextId) {
                 setActiveProject(nextId);
-                navigate(`/projects/${nextId}/plan`);
+                navigate(`/view/projects/${nextId}/plan`);
               }
             }}
             style={{

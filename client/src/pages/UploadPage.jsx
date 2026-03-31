@@ -418,7 +418,7 @@ const PhotosPage = () => {
               className="photo-grid-card"
               onClick={() => {
                 if (!selectionMode) {
-                  navigate(`/photos/${photo.id}/options`);
+                  navigate(`/view/photos/${photo.id}/options`);
                 }
               }}
             >
