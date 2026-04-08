@@ -133,7 +133,7 @@ Deploy **only** `client/build/` to GitHub Pages. All `REACT_APP_*` env vars must
 
 Build-time env vars:
 
-- `REACT_APP_API_BASE_URL=https://swallow-skyer-v1.onrender.com`
+- `REACT_APP_API_BASE_URL=https://swallow-app.onrender.com`
 - `REACT_APP_SUPABASE_URL=<your supabase url>`
 - `REACT_APP_SUPABASE_ANON_KEY=<your anon key>`
 
@@ -157,7 +157,7 @@ Required env vars:
 
 - `APP_ENV=production`
 - `SECRET_KEY=<random>`
-- `FRONTEND_ORIGIN=https://chris-roberts-2.github.io`
+- `FRONTEND_ORIGIN=swallow-portal-swallow-portal.vercel.app`
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
 - `R2_ACCOUNT_ID` (or `R2_ENDPOINT_URL`), `R2_PUBLIC_BASE_URL`
