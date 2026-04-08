@@ -13,7 +13,6 @@ const ProfilePage = () => {
     lastName: '',
   });
   const [loginForm, setLoginForm] = useState({
-    email: '',
     password: '',
   });
   const [error, setError] = useState('');
@@ -31,10 +30,7 @@ const ProfilePage = () => {
       });
     }
     if (!isEditingLogin) {
-      setLoginForm({
-        email: profile?.email || user?.email || '',
-        password: '',
-      });
+      setLoginForm({ password: '' });
     }
   }, [profile, user, isEditingUser, isEditingLogin]);
 
@@ -80,26 +76,19 @@ const ProfilePage = () => {
     setError('');
     setStatus('');
 
-    if (!loginForm.email.trim()) {
-      setError('Email is required.');
+    if (!loginForm.password.trim()) {
+      setError('Please enter a new password.');
       return;
     }
 
     setIsSaving(true);
     try {
-      await updateLogin({
-        email: loginForm.email,
-        password: loginForm.password || undefined,
-      });
-      setStatus(
-        loginForm.password
-          ? 'Login email/password updated.'
-          : 'Login email updated.'
-      );
+      await updateLogin({ password: loginForm.password });
+      setStatus('Password updated.');
       setIsEditingLogin(false);
-      setLoginForm(prev => ({ ...prev, password: '' }));
+      setLoginForm({ password: '' });
     } catch (err) {
-      setError(err?.message || 'Failed to update login.');
+      setError(err?.message || 'Failed to update password.');
     } finally {
       setIsSaving(false);
     }
@@ -193,6 +182,10 @@ const ProfilePage = () => {
                 <strong>Email:</strong>
                 <span>{profile?.email || user?.email || 'Unknown'}</span>
               </div>
+              <div className="profile-card__row">
+                <strong>Organization:</strong>
+                <span>{profile?.orgName || '—'}</span>
+              </div>
               {isEditingUser && (
                 <div className="profile-card__actions">
                   <button
@@ -232,10 +225,7 @@ const ProfilePage = () => {
                 type="button"
                 className="profile-section__edit profile-section__edit--ghost"
                 onClick={() => {
-                  setLoginForm({
-                    email: profile?.email || user?.email || '',
-                    password: '',
-                  });
+                  setLoginForm({ password: '' });
                   setIsEditingLogin(true);
                   setError('');
                   setStatus('');
@@ -249,25 +239,6 @@ const ProfilePage = () => {
             <div
               className={`profile-card ${isEditingLogin ? 'profile-card--edit' : ''}`}
             >
-              <div className="profile-card__row">
-                <strong>Email:</strong>
-                {isEditingLogin ? (
-                  <input
-                    type="email"
-                    name="loginEmail"
-                    value={loginForm.email}
-                    onChange={e =>
-                      setLoginForm(prev => ({
-                        ...prev,
-                        email: e.target.value,
-                      }))
-                    }
-                    required
-                  />
-                ) : (
-                  <span>{profile?.email || user?.email || 'Unknown'}</span>
-                )}
-              </div>
               <div className="profile-card__row">
                 <strong>Password:</strong>
                 {isEditingLogin ? (
@@ -303,10 +274,7 @@ const ProfilePage = () => {
                       setIsEditingLogin(false);
                       setError('');
                       setStatus('');
-                      setLoginForm({
-                        email: profile?.email || user?.email || '',
-                        password: '',
-                      });
+                      setLoginForm({ password: '' });
                     }}
                     className="btn-secondary"
                   >

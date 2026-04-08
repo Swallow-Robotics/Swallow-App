@@ -106,6 +106,7 @@ const normalizeProfile = row => {
     firstName: row.first_name || '',
     lastName: row.last_name || '',
     orgId: row.org_id || null,
+    orgName: row.org_name || null,
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
   };
@@ -254,26 +255,17 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const updateLogin = useCallback(
-    async ({ email, password }) => {
+    async ({ password }) => {
       const sessionUser = authState.session?.user;
       if (!sessionUser?.id) {
         throw new Error('Not authenticated');
       }
 
-      const payload = {};
-      const trimmedEmail = typeof email === 'string' ? email.trim() : '';
-      if (trimmedEmail && trimmedEmail !== sessionUser.email) {
-        payload.email = trimmedEmail;
-      }
-      if (typeof password === 'string' && password.length) {
-        payload.password = password;
-      }
-
-      if (!payload.email && !payload.password) {
+      if (typeof password !== 'string' || !password.length) {
         return { user: sessionUser };
       }
 
-      const { data, error } = await supabase.auth.updateUser(payload);
+      const { data, error } = await supabase.auth.updateUser({ password });
       if (error) {
         throw error;
       }
@@ -284,21 +276,9 @@ export const AuthProvider = ({ children }) => {
         null;
       syncSession(refreshed);
 
-      if (payload.email) {
-        try {
-          const profileResp = await apiClient.patch('/v1/profile', {
-            email: payload.email,
-          });
-          setProfileState(normalizeProfile(profileResp?.profile || null));
-        } catch (profileErr) {
-          // eslint-disable-next-line no-console
-          console.error('Failed to sync profile email', profileErr);
-        }
-      }
-
       return data;
     },
-    [authState.session, setProfileState, syncSession]
+    [authState.session, syncSession]
   );
 
   const refreshProjects = useCallback(

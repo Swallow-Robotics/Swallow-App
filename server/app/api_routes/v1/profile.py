@@ -67,6 +67,17 @@ def get_profile():
         if not row:
             supabase_client.ensure_user_exists(user_id, email=email)
             row = supabase_client.get_user_metadata(user_id) or None
+        if row:
+            org_id = row.get("org_id")
+            if org_id:
+                org_resp = (
+                    supabase_client.client.table("organizations")  # type: ignore[union-attr]
+                    .select("org_name")
+                    .eq("org_id", org_id)
+                    .maybe_single()
+                    .execute()
+                )
+                row["org_name"] = (org_resp.data or {}).get("org_name") if org_resp else None
         return jsonify({"profile": row}), 200
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
