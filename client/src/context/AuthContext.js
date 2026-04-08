@@ -100,12 +100,12 @@ const getInitialAuthState = () => {
 const normalizeProfile = row => {
   if (!row) return null;
   return {
-    id: row.id || null,
+    id: row.user_id || null,
     email: row.email || '',
     username: row.username || '',
     firstName: row.first_name || '',
     lastName: row.last_name || '',
-    company: row.company || '',
+    orgId: row.org_id || null,
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
   };
@@ -233,10 +233,6 @@ export const AuthProvider = ({ children }) => {
       if (typeof updates.lastName === 'string') {
         payload.last_name = updates.lastName.trim();
       }
-      if (typeof updates.company === 'string') {
-        payload.company = updates.company.trim();
-      }
-
       const resp = await apiClient.patch('/v1/profile', payload);
       const profile = normalizeProfile(resp?.profile || null);
       setProfileState(profile);
@@ -505,13 +501,13 @@ export const AuthProvider = ({ children }) => {
   // before we had a session. Once we have a session, flush that pending profile to
   // the backend so it lands in Supabase public.users.
   const registerProfileMetadata = useCallback(
-    async ({ userId, email, firstName, lastName, company }) => {
+    async ({ userId, email, firstName, lastName, organization }) => {
       const payload = {
         userId,
         email: (email || '').trim(),
         first_name: (firstName || '').trim(),
         last_name: (lastName || '').trim(),
-        company: (company || '').trim(),
+        organization: (organization || '').trim(),
       };
       const baseUrl = `${getApiOrigin().replace(/\/+$/, '')}/api/v1/profile/register`;
       const response = await fetch(baseUrl, {
@@ -558,7 +554,7 @@ export const AuthProvider = ({ children }) => {
   );
 
   const signup = useCallback(
-    async (email, password, { firstName, lastName, company } = {}) => {
+    async (email, password, { firstName, lastName, organization } = {}) => {
       const normalizedEmail = (email || '').trim();
       const emailRedirectTo =
         typeof window !== 'undefined' && window.location
@@ -589,7 +585,7 @@ export const AuthProvider = ({ children }) => {
           email: normalizedEmail,
           firstName,
           lastName,
-          company,
+          organization,
         });
       } else {
         throw new Error('Unable to register profile metadata');

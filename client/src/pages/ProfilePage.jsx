@@ -11,7 +11,6 @@ const ProfilePage = () => {
   const [userForm, setUserForm] = useState({
     firstName: '',
     lastName: '',
-    company: '',
   });
   const [loginForm, setLoginForm] = useState({
     email: '',
@@ -29,7 +28,6 @@ const ProfilePage = () => {
       setUserForm({
         firstName: profile?.firstName || '',
         lastName: profile?.lastName || '',
-        company: profile?.company || '',
       });
     }
     if (!isEditingLogin) {
@@ -68,7 +66,6 @@ const ProfilePage = () => {
       await updateProfile({
         firstName: userForm.firstName,
         lastName: userForm.lastName,
-        company: userForm.company,
       });
       setStatus('Profile updated.');
       setIsEditingUser(false);
@@ -139,7 +136,6 @@ const ProfilePage = () => {
                   setUserForm({
                     firstName: profile?.firstName || '',
                     lastName: profile?.lastName || '',
-                    company: profile?.company || '',
                   });
                   setIsEditingUser(true);
                   setError('');
@@ -197,25 +193,6 @@ const ProfilePage = () => {
                 <strong>Email:</strong>
                 <span>{profile?.email || user?.email || 'Unknown'}</span>
               </div>
-              <div className="profile-card__row">
-                <strong>Company:</strong>
-                {isEditingUser ? (
-                  <input
-                    type="text"
-                    name="company"
-                    value={userForm.company}
-                    onChange={e =>
-                      setUserForm(prev => ({
-                        ...prev,
-                        company: e.target.value,
-                      }))
-                    }
-                    placeholder="Company name"
-                  />
-                ) : (
-                  <span>{profile?.company || 'Add your company'}</span>
-                )}
-              </div>
               {isEditingUser && (
                 <div className="profile-card__actions">
                   <button
@@ -235,7 +212,6 @@ const ProfilePage = () => {
                       setUserForm({
                         firstName: profile?.firstName || '',
                         lastName: profile?.lastName || '',
-                        company: profile?.company || '',
                       });
                     }}
                     className="btn-secondary"

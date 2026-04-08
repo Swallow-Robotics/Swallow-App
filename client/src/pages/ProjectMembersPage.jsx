@@ -218,7 +218,7 @@ const ProjectMembersPage = () => {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Company</th>
+                <th>Organization</th>
                 <th>Email</th>
                 <th>Role</th>
                 <th>&nbsp;</th>
@@ -252,9 +252,7 @@ const ProjectMembersPage = () => {
                         name || ''
                       )}
                     </td>
-                    <td>
-                      {registrationIncomplete ? '' : member.company || ''}
-                    </td>
+                    <td />
                     <td
                       style={
                         registrationIncomplete

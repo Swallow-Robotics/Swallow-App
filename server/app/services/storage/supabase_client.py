@@ -1192,12 +1192,12 @@ class SupabaseClient:
             raise RuntimeError("Supabase client not initialized")
         # If a row already exists, no-op
         existing = (
-            self.client.table("users").select("id").eq("id", user_id).limit(1).execute()
+            self.client.table("users").select("user_id").eq("user_id", user_id).limit(1).execute()
         )
         if existing.data:
             return existing.data[0]
         fallback_email = email or f"{user_id}@local.invalid"
-        payload = {"id": user_id, "email": fallback_email}
+        payload = {"user_id": user_id, "email": fallback_email}
         response = self.client.table("users").upsert(payload).execute()
         return response.data[0] if response.data else payload
 
@@ -1419,12 +1419,12 @@ class SupabaseClient:
         user_ids = [m["user_id"] for m in members]
         profiles_resp = (
             self.client.table("users")
-            .select("id, email, first_name, last_name, company")
+            .select("id, email, first_name, last_name, org_id")
             .in_("id", user_ids)
             .execute()
         )
         profiles = profiles_resp.data or []
-        profile_map = {p["id"]: p for p in profiles}
+        profile_map = {p["user_id"]: p for p in profiles}
         result = []
         for m in members:
             user_profile = profile_map.get(m["user_id"], {})
@@ -1435,7 +1435,7 @@ class SupabaseClient:
                     "email": user_profile.get("email"),
                     "first_name": user_profile.get("first_name"),
                     "last_name": user_profile.get("last_name"),
-                    "company": user_profile.get("company"),
+                    "org_id": user_profile.get("org_id"),
                 }
             )
         return result
@@ -1570,7 +1570,7 @@ class SupabaseClient:
 
         try:
             response = (
-                self.client.table("users").select("*").eq("id", user_id).execute()
+                self.client.table("users").select("*").eq("user_id", user_id).execute()
             )
             return response.data[0] if response.data else None
         except Exception as e:

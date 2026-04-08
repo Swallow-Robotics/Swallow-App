@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request, g
 
 from app.middleware.auth_middleware import jwt_required
@@ -18,6 +19,32 @@ def _clean_text(value: str) -> str:
 
 def _normalize_email(value: str) -> str:
     return _clean_text(value).lower()
+
+
+def _resolve_org_id(org_name: str):
+    """
+    Return the org_id for an existing organization matching org_name, or create
+    a new organization entry and return its generated org_id.
+    """
+    if not org_name:
+        return None
+    existing = (
+        supabase_client.client.table("organizations")  # type: ignore[union-attr]
+        .select("org_id")
+        .eq("org_name", org_name)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        return existing.data[0]["org_id"]
+    created = (
+        supabase_client.client.table("organizations")  # type: ignore[union-attr]
+        .insert({"org_name": org_name})
+        .execute()
+    )
+    if created.data:
+        return created.data[0]["org_id"]
+    return None
 
 
 @bp.route("", methods=["GET"])
@@ -70,7 +97,7 @@ def register_profile():
 
     first_name = _clean_text(payload.get("first_name") or payload.get("firstName") or "")
     last_name = _clean_text(payload.get("last_name") or payload.get("lastName") or "")
-    company = _clean_text(payload.get("company") or "")
+    org_name = _clean_text(payload.get("organization") or "")
 
     try:
         auth_user = supabase_client.get_auth_user_by_id(user_id)
@@ -80,28 +107,30 @@ def register_profile():
 
         resolved_email = auth_email or email
 
+        org_id = _resolve_org_id(org_name) if org_name else None
+
         # Check for a pre-registered placeholder user with the same email.
         # The DB trigger (on_auth_user_created) may have already handled this;
         # if so, get_user_by_email returns the current user and no migration
         # is needed.
         existing = supabase_client.get_user_by_email(resolved_email)
-        old_user_id = existing.get("id") if existing and existing.get("id") != user_id else None
+        old_user_id = existing.get("user_id") if existing and existing.get("user_id") != user_id else None
 
         if old_user_id:
             # Temporarily rename the placeholder's email to free the unique
             # constraint so we can insert the authenticated user row.
             supabase_client.client.table("users").update(  # type: ignore[union-attr]
                 {"email": f"__migrating__{old_user_id}"}
-            ).eq("id", old_user_id).execute()
+            ).eq("user_id", old_user_id).execute()
 
         # Upsert the authenticated user — must happen BEFORE updating
         # project_members so the FK constraint is satisfied.
         updates = {
-            "id": user_id,
+            "user_id": user_id,
             "email": resolved_email,
             "first_name": first_name or None,
             "last_name": last_name or None,
-            "company": company or None,
+            "org_id": org_id,
         }
         supabase_client.client.table("users").upsert(updates).execute()  # type: ignore[union-attr]
 
@@ -113,11 +142,34 @@ def register_profile():
 
             # Remove the now-orphaned placeholder row.
             supabase_client.client.table("users").delete().eq(  # type: ignore[union-attr]
-                "id", old_user_id
+                "user_id", old_user_id
             ).execute()
 
         row = supabase_client.get_user_metadata(user_id)
         return jsonify({"profile": row}), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@bp.route("/authenticate", methods=["POST"])
+@jwt_required
+def mark_authenticated():
+    """
+    Set authenticated_at on the user's public.users row.
+
+    Called from the client after a successful email-verification callback to
+    record the timestamp of first authentication.
+    """
+    user_id = _current_user_id()
+    if not user_id:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        supabase_client.client.table("users").update(  # type: ignore[union-attr]
+            {"authenticated_at": now}
+        ).eq("user_id", user_id).execute()
+        return jsonify({"ok": True}), 200
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
@@ -131,7 +183,7 @@ def update_profile():
 
     payload = request.get_json(silent=True) or {}
     updates = {}
-    for key in ("first_name", "last_name", "company", "email"):
+    for key in ("first_name", "last_name", "email"):
         if key in payload:
             updates[key] = payload.get(key)
 
@@ -139,16 +191,12 @@ def update_profile():
         return jsonify({"error": "No profile fields provided"}), 400
 
     try:
-        updates["id"] = user_id
-        # supabase-py v2 does not support chaining .select() after .upsert() the way
-        # postgrest-js does. Execute the upsert, then read the row back.
+        updates["user_id"] = user_id
         supabase_client.client.table("users").upsert(updates).execute()  # type: ignore[union-attr]
         row = supabase_client.get_user_metadata(user_id)
         return jsonify({"profile": row}), 200
     except Exception as exc:
         message = str(exc)
-        # If Supabase PostgREST schema cache is missing columns (common when migrations
-        # haven't been applied), surface a clear, actionable error.
         if "PGRST204" in message and "Could not find the" in message:
             return (
                 jsonify(
@@ -156,12 +204,10 @@ def update_profile():
                         "error": "Supabase schema is missing required profile columns on public.users",
                         "code": "SUPABASE_SCHEMA_MISSING_COLUMNS",
                         "details": message,
-                        "requiredColumns": ["first_name", "last_name", "company"],
-                        "fix": "Apply the migration that adds profile columns (see supabase/migrations/20251216000000_add_user_profile_fields.sql) and refresh PostgREST schema cache.",
+                        "requiredColumns": ["first_name", "last_name"],
+                        "fix": "Ensure the public.users migration has been applied and refresh the PostgREST schema cache.",
                     }
                 ),
                 500,
             )
         return jsonify({"error": message}), 500
-
-

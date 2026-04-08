@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '../lib/supabaseClient';
+import { getApiOrigin } from '../utils/apiEnv';
 
 const parseHashParams = () => {
   const raw = (window.location.hash || '').replace(/^#/, '');
@@ -18,6 +19,17 @@ const parseHashParams = () => {
     error_description,
     params,
   };
+};
+
+const markAuthenticated = async accessToken => {
+  const baseUrl = `${getApiOrigin().replace(/\/+$/, '')}/api/v1/profile/authenticate`;
+  await fetch(baseUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
 };
 
 const AuthCallbackPage = () => {
@@ -50,6 +62,8 @@ const AuthCallbackPage = () => {
           throw new Error(friendly);
         }
 
+        let sessionAccessToken = '';
+
         if (access_token && refresh_token) {
           if (isMounted) {
             setStatus('Email confirmed. Finishing sign-in…');
@@ -64,6 +78,7 @@ const AuthCallbackPage = () => {
           if (!data?.session) {
             throw new Error('No session returned from auth callback.');
           }
+          sessionAccessToken = data.session.access_token;
         } else {
           const { data, error: exchangeError } =
             await supabase.auth.exchangeCodeForSession(window.location.href);
@@ -73,7 +88,13 @@ const AuthCallbackPage = () => {
           if (!data?.session) {
             throw new Error('No session returned from auth callback.');
           }
+          sessionAccessToken = data.session.access_token;
         }
+
+        if (sessionAccessToken) {
+          await markAuthenticated(sessionAccessToken);
+        }
+
         if (isMounted) {
           navigate('/email-confirmed', { replace: true });
         }

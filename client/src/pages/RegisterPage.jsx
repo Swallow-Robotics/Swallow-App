@@ -8,7 +8,7 @@ const RegisterPage = () => {
   const [formValues, setFormValues] = useState({
     firstName: '',
     lastName: '',
-    company: '',
+    organization: '',
     email: '',
     password: '',
   });
@@ -29,7 +29,7 @@ const RegisterPage = () => {
       const result = await signup(formValues.email, formValues.password, {
         firstName: formValues.firstName,
         lastName: formValues.lastName,
-        company: formValues.company,
+        organization: formValues.organization,
       });
       if (result?.needsEmailConfirmation) {
         navigate('/check-email', {
@@ -75,15 +75,15 @@ const RegisterPage = () => {
               />
             </label>
           </div>
-          <label htmlFor="company">
-            Company (optional)
+          <label htmlFor="organization">
+            Organization *
             <input
-              id="company"
-              name="company"
+              id="organization"
+              name="organization"
               type="text"
-              value={formValues.company}
+              value={formValues.organization}
               onChange={handleChange}
-              placeholder="Company or organization"
+              required
             />
           </label>
           <label htmlFor="email">

@@ -291,7 +291,7 @@ def invite_project_member(project_id):
         target_user = supabase_client.get_user_by_email(raw_email)
         if not target_user:
             target_user = supabase_client.create_user_with_email(raw_email)
-        target_user_id = target_user.get("id") if target_user else None
+        target_user_id = target_user.get("user_id") if target_user else None
         if not target_user_id:
             return jsonify({"error": "Failed to resolve or create user"}), 500
 

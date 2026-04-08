@@ -193,16 +193,11 @@ def _serialize_photo(
             user_row = supabase_client.get_user_metadata(user_id) or {}
             first = (user_row.get("first_name") or "").strip()
             last = (user_row.get("last_name") or "").strip()
-            company = (user_row.get("company") or "").strip()
-            name = " ".join([part for part in [first, last] if part])
-            display = name
-            if company:
-                display = f"{name}, {company}" if name else company
+            display = " ".join([part for part in [first, last] if part])
             uploaded_by = {
                 "id": user_id,
                 "first_name": first or None,
                 "last_name": last or None,
-                "company": company or None,
                 "display": display or None,
             }
         except Exception:
