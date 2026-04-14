@@ -740,7 +740,7 @@ class SupabaseClient:
     def list_project_ids_for_user(self, user_id: str) -> List[str]:
         """Return a flat list of project ids the user can access."""
         projects = self.list_projects_for_user(user_id)
-        return [p.get("id") for p in projects if p.get("id")]
+        return [p.get("project_id") for p in projects if p.get("project_id")]
 
     def fetch_project_photos(
         self,
@@ -946,41 +946,33 @@ class SupabaseClient:
 
     def create_project(
         self,
-        name: str,
-        owner_id: str,
-        description: Optional[str] = None,
-        address: Optional[str] = None,
-        address_coord: Optional[Dict[str, Any]] = None,
-        show_on_projects: Optional[bool] = None,
+        project_name: str,
+        created_by: str,
+        org_id: Optional[str] = None,
+        project_address: Optional[str] = None,
+        address_lat: Optional[float] = None,
+        address_lng: Optional[float] = None,
     ):
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
-        # Best-effort ensure owner exists to satisfy FK constraints (local/dev)
+        # Best-effort ensure creator exists to satisfy FK constraints (local/dev)
         try:
-            self.ensure_user_exists(owner_id)
+            self.ensure_user_exists(created_by)
         except Exception:
-            # Non-fatal: if ensure fails, we still attempt creation and let Supabase error bubble
             pass
-        payload: Dict[str, Any] = {"name": name, "owner_id": owner_id}
-        if description is not None:
-            payload["description"] = description
-        if address is not None:
-            payload["address"] = address.strip()
-        if address_coord is not None:
-            payload["address_coord"] = address_coord
-        if show_on_projects is not None:
-            payload["show_on_projects"] = show_on_projects
+        payload: Dict[str, Any] = {"project_name": project_name, "created_by": created_by}
+        if org_id is not None:
+            payload["org_id"] = org_id
+        if project_address is not None:
+            payload["project_address"] = project_address.strip()
+        if address_lat is not None:
+            payload["address_lat"] = address_lat
+        if address_lng is not None:
+            payload["address_lng"] = address_lng
         response = self.client.table("projects").insert(payload).execute()
         if not response.data:
             raise RuntimeError("Failed to create project")
-        project = response.data[0]
-        if description is not None:
-            project["description"] = description
-        if address is not None:
-            project["address"] = address
-        if show_on_projects is not None:
-            project["show_on_projects"] = show_on_projects
-        return project
+        return response.data[0]
 
     def create_project_location(
         self, project_id: str, lat: float, lng: float
@@ -1185,7 +1177,7 @@ class SupabaseClient:
 
     def ensure_user_exists(self, user_id: str, email: Optional[str] = None):
         """
-        Ensure a user row exists to satisfy FK constraints on projects.owner_id.
+        Ensure a user row exists to satisfy FK constraints on projects.created_by.
         Uses a lightweight upsert with a fallback email when not provided.
         """
         if not self.client:
@@ -1267,7 +1259,7 @@ class SupabaseClient:
             "project_id": project_id,
             "user_id": user_id,
             "role": role,
-            "last_accessed_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "last_accessed": datetime.datetime.utcnow().isoformat() + "Z",
         }
         response = self.client.table("project_members").upsert(
             payload, on_conflict="project_id,user_id"
@@ -1291,13 +1283,13 @@ class SupabaseClient:
         return role_map.get(lowered, normalized)
 
     def list_projects_for_user(
-        self, user_id: str, show_on_projects: Optional[bool] = True
+        self, user_id: str, archived: Optional[bool] = False
     ) -> List[Dict[str, Any]]:
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
         membership_response = (
             self.client.table("project_members")
-            .select("project_id, role, last_accessed_at")
+            .select("project_id, role, last_accessed")
             .eq("user_id", user_id)
             .execute()
         )
@@ -1305,27 +1297,39 @@ class SupabaseClient:
         project_ids = [row["project_id"] for row in membership]
         if not project_ids:
             return []
-        query = self.client.table("projects").select("*").in_("id", project_ids)
-        if show_on_projects is not None:
-            query = query.eq("show_on_projects", bool(show_on_projects))
+        query = self.client.table("projects").select("*").in_("project_id", project_ids)
+        if archived is not None:
+            query = query.eq("archived", bool(archived))
         response = query.execute()
         projects = response.data or []
+
+        # Batch-fetch org names for all unique org_ids
+        org_ids = list({p["org_id"] for p in projects if p.get("org_id")})
+        org_name_map: Dict[str, str] = {}
+        if org_ids:
+            org_resp = (
+                self.client.table("organizations")
+                .select("org_id, org_name")
+                .in_("org_id", org_ids)
+                .execute()
+            )
+            org_name_map = {r["org_id"]: r["org_name"] for r in (org_resp.data or [])}
+
         role_map = {
             row["project_id"]: self._normalize_project_role(row.get("role"))
             for row in membership
         }
         access_map = {
-            row["project_id"]: row.get("last_accessed_at") for row in membership
+            row["project_id"]: row.get("last_accessed") for row in membership
         }
         for project in projects:
-            project["role"] = role_map.get(project["id"])
-            project["last_accessed_at"] = access_map.get(project["id"])
+            pid = project["project_id"]
+            project["role"] = role_map.get(pid)
+            project["last_accessed"] = access_map.get(pid)
+            project["org_name"] = org_name_map.get(project.get("org_id") or "")
 
-        # Sort by last accessed desc, fallback created_at desc
         def sort_key(item):
-            return (
-                item.get("last_accessed_at") or item.get("updated_at") or item.get("created_at") or ""
-            )
+            return item.get("last_accessed") or item.get("created_at") or ""
 
         return sorted(projects, key=sort_key, reverse=True)
 
@@ -1333,39 +1337,41 @@ class SupabaseClient:
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
         response = (
-            self.client.table("projects").select("*").eq("id", project_id).execute()
+            self.client.table("projects").select("*").eq("project_id", project_id).execute()
         )
         return response.data[0] if response.data else None
 
     def update_project(
         self,
         project_id: str,
-        name: Optional[str] = None,
-        address: Optional[str] = None,
-        address_coord: Optional[Dict[str, Any]] = None,
-        show_on_projects: Optional[bool] = None,
+        project_name: Optional[str] = None,
+        project_address: Optional[str] = None,
+        address_lat: Optional[float] = None,
+        address_lng: Optional[float] = None,
+        archived: Optional[bool] = None,
     ) -> Optional[Dict[str, Any]]:
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
         fields: Dict[str, Any] = {}
-        if name is not None:
-            fields["name"] = name
-        if address is not None:
-            fields["address"] = address.strip()
-            fields["address_coord"] = address_coord
-        if show_on_projects is not None:
-            fields["show_on_projects"] = show_on_projects
+        if project_name is not None:
+            fields["project_name"] = project_name
+        if project_address is not None:
+            fields["project_address"] = project_address.strip()
+            fields["address_lat"] = address_lat
+            fields["address_lng"] = address_lng
+        if archived is not None:
+            fields["archived"] = archived
         if not fields:
             return self.get_project(project_id)
         response = (
-            self.client.table("projects").update(fields).eq("id", project_id).execute()
+            self.client.table("projects").update(fields).eq("project_id", project_id).execute()
         )
         return response.data[0] if response.data else None
 
     def delete_project(self, project_id: str) -> bool:
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
-        response = self.client.table("projects").delete().eq("id", project_id).execute()
+        response = self.client.table("projects").delete().eq("project_id", project_id).execute()
         return bool(response.data)
 
     def touch_project_access(self, project_id: str, user_id: str):
@@ -1374,7 +1380,7 @@ class SupabaseClient:
         now_iso = datetime.datetime.utcnow().isoformat() + "Z"
         # Update only; avoid duplicate key errors. Rows are created when membership is added.
         self.client.table("project_members").update(
-            {"last_accessed_at": now_iso}
+            {"last_accessed": now_iso}
         ).eq("project_id", project_id).eq("user_id", user_id).execute()
 
     def get_project_role(self, project_id: str, user_id: str) -> Optional[str]:

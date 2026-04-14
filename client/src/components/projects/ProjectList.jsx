@@ -31,8 +31,12 @@ const ProjectList = ({
     return <div>No projects yet.</div>;
   }
 
-  const activeProject = safeProjects.find(p => p.id === activeProjectId);
-  const otherProjects = safeProjects.filter(p => p.id !== activeProjectId);
+  const activeProject = safeProjects.find(
+    p => p.project_id === activeProjectId
+  );
+  const otherProjects = safeProjects.filter(
+    p => p.project_id !== activeProjectId
+  );
 
   const getCardStyle = (isActive, isMenuOpen) => ({
     border: '1px solid var(--color-border)',
@@ -60,11 +64,11 @@ const ProjectList = ({
     const canUnjoin =
       role === 'administrator' || role === 'editor' || role === 'viewer';
 
-    const isMenuOpen = menuOpenId === project.id;
+    const isMenuOpen = menuOpenId === project.project_id;
 
     return (
       <div
-        key={project.id}
+        key={project.project_id}
         role="button"
         tabIndex={0}
         onClick={() => {
@@ -108,16 +112,26 @@ const ProjectList = ({
                 marginBottom: 'var(--space-xs)',
               }}
             >
-              {project.name}
+              {project.project_name}
             </div>
-            {project.address ? (
+            {project.org_name ? (
               <div
                 style={{
                   color: 'var(--color-text-secondary)',
                   fontSize: 'var(--font-size-sm)',
                 }}
               >
-                {project.address}
+                {project.org_name}
+              </div>
+            ) : null}
+            {project.project_address ? (
+              <div
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  fontSize: 'var(--font-size-sm)',
+                }}
+              >
+                {project.project_address}
               </div>
             ) : null}
           </div>
@@ -131,7 +145,7 @@ const ProjectList = ({
               onClick={e => {
                 e.stopPropagation();
                 setMenuOpenId(prev =>
-                  prev === project.id ? null : project.id
+                  prev === project.project_id ? null : project.project_id
                 );
               }}
               className="btn-secondary btn-icon-sm"

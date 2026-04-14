@@ -26,7 +26,8 @@ const ProjectSwitcher = () => {
   const handleChange = e => {
     const value = e.target.value;
     const selected =
-      projects.find(p => p.id === value) || (value ? { id: value } : null);
+      projects.find(p => p.project_id === value) ||
+      (value ? { project_id: value } : null);
     setActiveProject(selected);
   };
 
@@ -41,11 +42,11 @@ const ProjectSwitcher = () => {
     <div data-testid="project-switcher" style={{ marginBottom: 12 }}>
       <label>
         Project:{' '}
-        <select value={activeProject?.id || ''} onChange={handleChange}>
+        <select value={activeProject?.project_id || ''} onChange={handleChange}>
           <option value="">Select a project</option>
           {projects.map(project => (
-            <option key={project.id} value={project.id}>
-              {project.name} ({project.role})
+            <option key={project.project_id} value={project.project_id}>
+              {project.project_name} ({project.role})
             </option>
           ))}
         </select>

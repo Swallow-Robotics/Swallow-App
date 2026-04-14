@@ -4,6 +4,7 @@ Project CRUD routes with Supabase-backed permissions.
 
 import logging
 import os
+from typing import Optional
 from uuid import UUID
 
 from flask import Blueprint, jsonify, request, g
@@ -91,9 +92,18 @@ def create_project():
     if coord_err:
         return jsonify({"error": coord_err}), 400
 
+    # Inherit org_id from the creating user's profile
+    org_id = None
+    try:
+        user_row = supabase_client.get_user_metadata(user_id) or {}
+        org_id = user_row.get("org_id")
+    except Exception:
+        pass
+
     project, err = project_service.create_project_with_location(
-        name=name,
-        owner_id=user_id,
+        project_name=name,
+        created_by=user_id,
+        org_id=org_id,
         address=address,
         lat=lat,
         lng=lng,
@@ -105,7 +115,7 @@ def create_project():
 
     try:
         supabase_client.add_project_member(
-            project_id=project["id"],
+            project_id=project["project_id"],
             user_id=user_id,
             role="Owner",
         )
@@ -124,13 +134,13 @@ def list_projects():
 
     try:
         archived_flag = (request.args.get("archived") or "").strip().lower()
-        show_on_projects = None
+        archived: Optional[bool] = None
         if archived_flag in {"true", "1", "yes"}:
-            show_on_projects = False
+            archived = True
         elif archived_flag in {"false", "0", "no", ""}:
-            show_on_projects = True
+            archived = False
         projects = supabase_client.list_projects_for_user(
-            user_id, show_on_projects=show_on_projects
+            user_id, archived=archived
         )
         return jsonify({"projects": projects})
     except Exception as exc:
@@ -174,7 +184,7 @@ def update_project(project_id):
     address = payload.get("address")
     raw_lat = payload.get("lat")
     raw_lng = payload.get("lng")
-    show_on_projects = payload.get("show_on_projects")
+    archived = payload.get("archived")
 
     if name is not None:
         name = name.strip()
@@ -187,11 +197,11 @@ def update_project(project_id):
 
     updated, err = project_service.update_project_with_location(
         project_id=project_id,
-        name=name,
+        project_name=name,
         address=address,
         lat=lat,
         lng=lng,
-        show_on_projects=show_on_projects,
+        archived=archived,
     )
     if err:
         geocode_err = err.get("geocode_error")
@@ -217,11 +227,11 @@ def delete_project(project_id):
 
     try:
         updated = supabase_client.update_project(
-            project_id=project_id, show_on_projects=False
+            project_id=project_id, archived=True
         )
         if not updated:
             return jsonify({"error": "Project not found"}), 404
-        return jsonify({"status": "hidden"})
+        return jsonify({"status": "archived"})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 

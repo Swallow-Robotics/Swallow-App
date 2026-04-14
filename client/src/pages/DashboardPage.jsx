@@ -33,17 +33,6 @@ const StatCard = ({ label, value }) => (
   </div>
 );
 
-const parseCoord = raw => {
-  if (!raw) return null;
-  if (typeof raw === 'string') {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-  return raw;
-};
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -75,7 +64,10 @@ const DashboardPage = () => {
     normalizedRole === 'owner' || normalizedRole === 'administrator';
 
   const project = summary?.project || projectData || {};
-  const addressCoord = parseCoord(project?.address_coord);
+  const addressCoord =
+    project?.address_lat != null && project?.address_lng != null
+      ? { lat: project.address_lat, lng: project.address_lng }
+      : null;
 
   useEffect(() => {
     const selectEl = projectSelectRef.current;
@@ -291,7 +283,7 @@ const DashboardPage = () => {
               onClick={() =>
                 setEditingProject({
                   id: activeProjectId,
-                  name: project.name,
+                  name: project.project_name,
                   address: project.address,
                 })
               }

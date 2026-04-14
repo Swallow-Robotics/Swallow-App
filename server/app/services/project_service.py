@@ -79,8 +79,9 @@ def _sync_location(project_id: str, geo: Dict[str, Any]) -> None:
 
 
 def create_project_with_location(
-    name: str,
-    owner_id: str,
+    project_name: str,
+    created_by: str,
+    org_id: Optional[str] = None,
     address: Optional[str] = None,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
@@ -93,7 +94,7 @@ def create_project_with_location(
 
     Workflow:
     - Resolve geo via address or coordinates first; abort entirely on failure.
-    - Write project row with resolved address and address_coord.
+    - Write project row with resolved address and address_lat/address_lng.
     - Write public.locations row (marker='project').
     - If the location write fails → delete the project row (rollback) and return error.
     - If no location input → create project only; no location row is created.
@@ -102,15 +103,16 @@ def create_project_with_location(
     if err:
         return None, err
 
-    address_coord = {"lat": geo["lat"], "lng": geo["lng"]} if geo else None
     resolved_address = geo["address"] if geo else address
 
     try:
         project = supabase_client.create_project(
-            name=name,
-            owner_id=owner_id,
-            address=resolved_address,
-            address_coord=address_coord,
+            project_name=project_name,
+            created_by=created_by,
+            org_id=org_id,
+            project_address=resolved_address,
+            address_lat=geo["lat"] if geo else None,
+            address_lng=geo["lng"] if geo else None,
         )
     except Exception as exc:
         logger.error("Project creation failed: %s", exc)
@@ -118,29 +120,24 @@ def create_project_with_location(
 
     if geo:
         try:
-            _persist_location(project["id"], geo)
+            _persist_location(project["project_id"], geo)
         except Exception as exc:
-            logger.error(
-                "Location write failed for project %s; rolling back: %s",
-                project.get("id"),
+            logger.warning(
+                "Location pin write failed for project %s (project was still created): %s",
+                project.get("project_id"),
                 exc,
             )
-            _attempt_rollback(project.get("id"))
-            return None, {
-                "error": "Failed to create project location. No data was saved.",
-                "geocode_error": "location_write_failed",
-            }
 
     return project, None
 
 
 def update_project_with_location(
     project_id: str,
-    name: Optional[str] = None,
+    project_name: Optional[str] = None,
     address: Optional[str] = None,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
-    show_on_projects: Optional[bool] = None,
+    archived: Optional[bool] = None,
 ) -> Result:
     """
     Update a project, re-resolving and syncing the project-marker location when
@@ -151,7 +148,7 @@ def update_project_with_location(
 
     Workflow:
     - Resolve geo via address or coordinates first; abort entirely on failure.
-    - Update project row with resolved address and address_coord.
+    - Update project row with resolved address and address_lat/address_lng.
     - Upsert public.locations row (marker='project') if a location was resolved.
     - If no location input in payload → update only the supplied fields.
     """
@@ -166,16 +163,16 @@ def update_project_with_location(
     if err:
         return None, err
 
-    address_coord = {"lat": geo["lat"], "lng": geo["lng"]} if geo else None
     resolved_address = geo["address"] if geo else (address if address is not None else None)
 
     try:
         updated = supabase_client.update_project(
             project_id=project_id,
-            name=name,
-            address=resolved_address,
-            address_coord=address_coord,
-            show_on_projects=show_on_projects,
+            project_name=project_name,
+            project_address=resolved_address,
+            address_lat=geo["lat"] if geo else None,
+            address_lng=geo["lng"] if geo else None,
+            archived=archived,
         )
     except Exception as exc:
         logger.error("Project update failed for %s: %s", project_id, exc)

@@ -126,13 +126,13 @@ export const AuthProvider = ({ children }) => {
   // If projects cannot be fetched temporarily (backend 500, offline, etc), keep the
   // active project id usable for upload/map flows by falling back to the stored id.
   const activeProject =
-    authState.projects.find(p => p.id === authState.activeProjectId) ||
+    authState.projects.find(p => p.project_id === authState.activeProjectId) ||
     authState.activeProjectId ||
     null;
 
   const setActiveProject = useCallback(project => {
     const projectId =
-      typeof project === 'string' ? project : project?.id || null;
+      typeof project === 'string' ? project : project?.project_id || null;
     if (typeof window !== 'undefined') {
       if (projectId) {
         window.localStorage.setItem('activeProjectId', projectId);
@@ -315,16 +315,16 @@ export const AuthProvider = ({ children }) => {
         setAuthState(prev => {
           const nextRoles = { ...(prev?.projectRoles || {}) };
           list.forEach(p => {
-            if (p.id && p.role) {
-              nextRoles[p.id] = p.role;
+            if (p.project_id && p.role) {
+              nextRoles[p.project_id] = p.role;
             }
           });
           persistProjectRoles(nextRoles);
 
           const currentId = prev?.activeProjectId;
-          const hasCurrent = currentId && list.some(p => p.id === currentId);
+          const hasCurrent = currentId && list.some(p => p.project_id === currentId);
           const nextActiveId =
-            hasCurrent || !list.length ? currentId || null : list[0].id;
+            hasCurrent || !list.length ? currentId || null : list[0].project_id;
 
           return {
             ...prev,
@@ -466,7 +466,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!authState.session || !authState.activeProjectId) return;
     const projectId = authState.activeProjectId;
-    const hasProject = (authState.projects || []).some(p => p.id === projectId);
+    const hasProject = (authState.projects || []).some(p => p.project_id === projectId);
     if (!hasProject) return;
     const now = Date.now();
     const last = lastAccessedProject.current;

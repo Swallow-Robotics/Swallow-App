@@ -135,26 +135,11 @@ const PlanPage = () => {
   }, [selectedProjectName, projects.length]);
 
   const projectCenter = useMemo(() => {
-    const proj = (projects || []).find(p => p.id === currentProjectId);
-    const raw =
-      proj?.address_coord ||
-      proj?.addressCoord ||
-      proj?.address_coordinates ||
-      null;
-    if (!raw) return null;
-    const parsed =
-      typeof raw === 'string'
-        ? (() => {
-            try {
-              return JSON.parse(raw);
-            } catch {
-              return null;
-            }
-          })()
-        : raw;
-    if (!parsed) return null;
-    const lat = Number(parsed.lat ?? parsed.latitude);
-    const lng = Number(parsed.lng ?? parsed.lon ?? parsed.longitude);
+    const proj = (projects || []).find(p => p.project_id === currentProjectId);
+    if (!proj || proj.address_lat == null || proj.address_lng == null)
+      return null;
+    const lat = Number(proj.address_lat);
+    const lng = Number(proj.address_lng);
     return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
   }, [projects, currentProjectId]);
 

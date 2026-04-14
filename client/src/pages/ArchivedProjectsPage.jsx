@@ -11,7 +11,7 @@ const ArchivedProjectsPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const activeProjectId = activeProject?.id || activeProject || null;
+  const activeProjectId = activeProject?.project_id || activeProject || null;
 
   const fetchArchived = useCallback(async () => {
     setIsLoading(true);
@@ -44,8 +44,8 @@ const ArchivedProjectsPage = () => {
 
   const handleMembers = useCallback(
     project => {
-      if (project?.id) {
-        navigate(`/view/projects/${project.id}/members`);
+      if (project?.project_id) {
+        navigate(`/view/projects/${project.project_id}/members`);
       }
     },
     [navigate]
@@ -53,11 +53,11 @@ const ArchivedProjectsPage = () => {
 
   const handleUnjoin = useCallback(
     async project => {
-      if (!project?.id) return;
+      if (!project?.project_id) return;
       setError('');
       try {
-        await apiClient.post(`/v1/projects/${project.id}/unjoin`);
-        if (activeProjectId === project.id) {
+        await apiClient.post(`/v1/projects/${project.project_id}/unjoin`);
+        if (activeProjectId === project.project_id) {
           setActiveProject(null);
         }
         await fetchArchived();
@@ -74,13 +74,13 @@ const ArchivedProjectsPage = () => {
 
   const handleUnarchive = useCallback(
     async project => {
-      if (!project?.id) return;
+      if (!project?.project_id) return;
       setError('');
       try {
-        await apiClient.patch(`/v1/projects/${project.id}`, {
-          show_on_projects: true,
+        await apiClient.patch(`/v1/projects/${project.project_id}`, {
+          archived: false,
         });
-        if (activeProjectId === project.id) {
+        if (activeProjectId === project.project_id) {
           setActiveProject(null);
         }
         await fetchArchived();

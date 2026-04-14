@@ -35,7 +35,7 @@ def _normalize_role(value):
 
 def _get_project_owner_id(project_id):
     project = supabase_client.get_project(project_id) or {}
-    return project.get("owner_id")
+    return project.get("created_by")
 
 
 def _json_error(message, status=400):

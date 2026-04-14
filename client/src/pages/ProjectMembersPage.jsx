@@ -235,7 +235,7 @@ const ProjectMembersPage = () => {
                 const canShowActions =
                   canManageMembers &&
                   member.user_id !== user?.id &&
-                  member.user_id !== project?.owner_id;
+                  member.user_id !== project?.created_by;
                 return (
                   <tr key={member.user_id}>
                     <td style={{ position: 'relative', overflow: 'visible' }}>

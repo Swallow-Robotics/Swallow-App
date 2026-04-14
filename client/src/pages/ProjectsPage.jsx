@@ -20,7 +20,7 @@ const ProjectsPage = () => {
   const [editingProject, setEditingProject] = useState(null);
   const navigate = useNavigate();
 
-  const activeProjectId = activeProject?.id || activeProject || null;
+  const activeProjectId = activeProject?.project_id || activeProject || null;
 
   useEffect(() => {
     refreshProjects({ redirectWhenEmpty: false });
@@ -40,10 +40,10 @@ const ProjectsPage = () => {
 
   const handleEditSubmit = useCallback(
     async values => {
-      if (!editingProject?.id) return;
+      if (!editingProject?.project_id) return;
       setError('');
       try {
-        await apiClient.patch(`/v1/projects/${editingProject.id}`, values);
+        await apiClient.patch(`/v1/projects/${editingProject.project_id}`, values);
         setEditingProject(null);
         await refreshProjects({ redirectWhenEmpty: false, force: true });
       } catch (err) {
@@ -59,8 +59,8 @@ const ProjectsPage = () => {
 
   const handleMembers = useCallback(
     project => {
-      if (project?.id) {
-        navigate(`/view/projects/${project.id}/members`);
+      if (project?.project_id) {
+        navigate(`/view/projects/${project.project_id}/members`);
       }
     },
     [navigate]
@@ -68,11 +68,11 @@ const ProjectsPage = () => {
 
   const handleDelete = useCallback(
     async project => {
-      if (!project?.id) return;
+      if (!project?.project_id) return;
       setError('');
       try {
-        await apiClient.delete(`/v1/projects/${project.id}`);
-        if (activeProjectId === project.id) {
+        await apiClient.delete(`/v1/projects/${project.project_id}`);
+        if (activeProjectId === project.project_id) {
           setActiveProject(null);
         }
         await refreshProjects({ redirectWhenEmpty: false, force: true });
@@ -89,11 +89,11 @@ const ProjectsPage = () => {
 
   const handleUnjoin = useCallback(
     async project => {
-      if (!project?.id) return;
+      if (!project?.project_id) return;
       setError('');
       try {
-        await apiClient.post(`/v1/projects/${project.id}/unjoin`);
-        if (activeProjectId === project.id) {
+        await apiClient.post(`/v1/projects/${project.project_id}/unjoin`);
+        if (activeProjectId === project.project_id) {
           setActiveProject(null);
         }
         await refreshProjects({ redirectWhenEmpty: false, force: true });

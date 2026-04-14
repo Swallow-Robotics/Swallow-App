@@ -233,17 +233,11 @@ const FlyMapPage = () => {
 
   // Fallback: coordinates from the project object (address geocode)
   const selectedProjectCoord = useMemo(() => {
-    const current = projects.find(p => p.id === activeProjectId);
+    const current = projects.find(p => p.project_id === activeProjectId);
     if (!current) return null;
-    const coord =
-      current.address_coord ||
-      current.addressCoord ||
-      current.address_coordinates ||
-      current.addressCoordinates ||
-      null;
-    if (coord) {
-      const lat = Number(coord.lat ?? coord.latitude);
-      const lon = Number(coord.lon ?? coord.lng ?? coord.longitude);
+    if (current.address_lat != null && current.address_lng != null) {
+      const lat = Number(current.address_lat);
+      const lon = Number(current.address_lng);
       if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
     }
     // Some projects store lat/lng directly on the row
