@@ -118,6 +118,7 @@ def create_project():
             project_id=project["project_id"],
             user_id=user_id,
             role="Owner",
+            created_by=user_id,
         )
         return jsonify(project), 201
     except Exception as exc:
@@ -306,7 +307,7 @@ def invite_project_member(project_id):
             return jsonify({"error": "Failed to resolve or create user"}), 500
 
         project = supabase_client.get_project(project_id) or {}
-        project_owner_id = project.get("owner_id")
+        project_owner_id = project.get("created_by")
         if project_owner_id and target_user_id == project_owner_id:
             if resolved_role != "Owner":
                 return jsonify({"error": "Project creator must remain an Owner"}), 403
@@ -314,7 +315,9 @@ def invite_project_member(project_id):
         if supabase_client.get_project_role(project_id, target_user_id):
             return jsonify({"error": "Member already exists"}), 400
 
-        supabase_client.add_project_member(project_id, target_user_id, resolved_role)
+        supabase_client.add_project_member(
+            project_id, target_user_id, resolved_role, created_by=user_id
+        )
 
         members = supabase_client.list_project_members_with_profile(project_id)
         member = next((m for m in members if m.get("user_id") == target_user_id), None)
@@ -337,7 +340,7 @@ def unjoin_project(project_id):
         return jsonify(payload), status_code
 
     project = supabase_client.get_project(project_id) or {}
-    project_owner_id = project.get("owner_id")
+    project_owner_id = project.get("created_by")
     if project_owner_id and user_id == project_owner_id:
         return jsonify({"error": "Project creator cannot unjoin their project"}), 400
 

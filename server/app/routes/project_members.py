@@ -83,7 +83,10 @@ def add_member(project_id):
     if supabase_client.get_project_role(project_id, target_user_id):
         return _json_error("Member already exists", 400)
 
-    member = supabase_client.add_project_member(project_id, target_user_id, role)
+    actor_user_id = permission.get("user_id")
+    member = supabase_client.add_project_member(
+        project_id, target_user_id, role, created_by=actor_user_id
+    )
     return jsonify({"success": True, "data": member}), 201
 
 

@@ -1252,15 +1252,23 @@ class SupabaseClient:
             return response.data[0] if isinstance(response.data, list) else response.data
         return self.get_user_by_email(email)
 
-    def add_project_member(self, project_id: str, user_id: str, role: str):
+    def add_project_member(
+        self,
+        project_id: str,
+        user_id: str,
+        role: str,
+        created_by: Optional[str] = None,
+    ):
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
-        payload = {
+        payload: Dict[str, Any] = {
             "project_id": project_id,
             "user_id": user_id,
             "role": role,
             "last_accessed": datetime.datetime.utcnow().isoformat() + "Z",
         }
+        if created_by is not None:
+            payload["created_by"] = created_by
         response = self.client.table("project_members").upsert(
             payload, on_conflict="project_id,user_id"
         ).execute()
@@ -1425,8 +1433,8 @@ class SupabaseClient:
         user_ids = [m["user_id"] for m in members]
         profiles_resp = (
             self.client.table("users")
-            .select("id, email, first_name, last_name, org_id")
-            .in_("id", user_ids)
+            .select("user_id, email, first_name, last_name, org_id")
+            .in_("user_id", user_ids)
             .execute()
         )
         profiles = profiles_resp.data or []
@@ -1477,7 +1485,7 @@ class SupabaseClient:
             raise RuntimeError("Supabase client not initialized")
         response = (
             self.client.table("project_members")
-            .select("id", count="exact")
+            .select("user_id", count="exact")
             .eq("project_id", project_id)
             .in_("role", ["Owner", "owner"])
             .execute()
