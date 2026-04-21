@@ -138,6 +138,7 @@ def update_project_with_location(
     lat: Optional[float] = None,
     lng: Optional[float] = None,
     archived: Optional[bool] = None,
+    org_id: Optional[str] = None,
 ) -> Result:
     """
     Update a project, re-resolving and syncing the project-marker location when
@@ -173,6 +174,7 @@ def update_project_with_location(
             address_lat=geo["lat"] if geo else None,
             address_lng=geo["lng"] if geo else None,
             archived=archived,
+            org_id=org_id,
         )
     except Exception as exc:
         logger.error("Project update failed for %s: %s", project_id, exc)

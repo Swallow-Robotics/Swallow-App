@@ -71,6 +71,29 @@ def _require_auth():
     return user_id
 
 
+def _validate_org_id(org_id_input):
+    """
+    Validate that org_id_input exists in public.organizations.
+    Returns (org_id, None) on success, or (None, error_response_tuple) on failure.
+    """
+    try:
+        UUID(org_id_input)
+    except (ValueError, TypeError, AttributeError):
+        return None, (jsonify({"error": "Invalid Organization ID"}), 400)
+    try:
+        org_resp = (
+            supabase_client.client.table("organizations")
+            .select("org_id")
+            .eq("org_id", org_id_input)
+            .execute()
+        )
+        if not org_resp.data:
+            return None, (jsonify({"error": "Invalid Organization ID"}), 400)
+        return org_id_input, None
+    except Exception:
+        return None, (jsonify({"error": "Unable to validate Organization ID"}), 500)
+
+
 @projects_bp.route("", methods=["POST"])
 @jwt_required
 def create_project():
@@ -84,6 +107,7 @@ def create_project():
     address = payload.get("address") or None
     raw_lat = payload.get("lat")
     raw_lng = payload.get("lng")
+    org_id_input = (payload.get("org_id") or "").strip() or None
 
     if not name:
         return jsonify({"error": "Project name is required"}), 400
@@ -92,13 +116,18 @@ def create_project():
     if coord_err:
         return jsonify({"error": coord_err}), 400
 
-    # Inherit org_id from the creating user's profile
-    org_id = None
-    try:
-        user_row = supabase_client.get_user_metadata(user_id) or {}
-        org_id = user_row.get("org_id")
-    except Exception:
-        pass
+    if org_id_input:
+        org_id, err_resp = _validate_org_id(org_id_input)
+        if err_resp:
+            return err_resp
+    else:
+        # Inherit org_id from the creating user's profile
+        org_id = None
+        try:
+            user_row = supabase_client.get_user_metadata(user_id) or {}
+            org_id = user_row.get("org_id")
+        except Exception:
+            pass
 
     project, err = project_service.create_project_with_location(
         project_name=name,
@@ -186,6 +215,7 @@ def update_project(project_id):
     raw_lat = payload.get("lat")
     raw_lng = payload.get("lng")
     archived = payload.get("archived")
+    org_id_input = (payload.get("org_id") or "").strip() or None
 
     if name is not None:
         name = name.strip()
@@ -196,6 +226,12 @@ def update_project(project_id):
     if coord_err:
         return jsonify({"error": coord_err}), 400
 
+    resolved_org_id = None
+    if org_id_input:
+        resolved_org_id, err_resp = _validate_org_id(org_id_input)
+        if err_resp:
+            return err_resp
+
     updated, err = project_service.update_project_with_location(
         project_id=project_id,
         project_name=name,
@@ -203,6 +239,7 @@ def update_project(project_id):
         lat=lat,
         lng=lng,
         archived=archived,
+        org_id=resolved_org_id,
     )
     if err:
         geocode_err = err.get("geocode_error")

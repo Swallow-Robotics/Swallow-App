@@ -33,6 +33,7 @@ import ConfirmEmailPage from './pages/ConfirmEmailPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import EmailConfirmedPage from './pages/EmailConfirmedPage';
 import PlanProjectsPage from './pages/PlanProjectsPage';
+import PlanTestPage from './pages/PlanTestPage';
 import HomePage from './pages/HomePage';
 
 const useDomain = () => {
@@ -288,6 +289,14 @@ export function AppRoutes() {
               element={
                 <AuthLayout>
                   <PlanProjectsPage />
+                </AuthLayout>
+              }
+            />
+            <Route
+              path="test"
+              element={
+                <AuthLayout>
+                  <PlanTestPage />
                 </AuthLayout>
               }
             />

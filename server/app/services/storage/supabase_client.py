@@ -1330,11 +1330,14 @@ class SupabaseClient:
         access_map = {
             row["project_id"]: row.get("last_accessed") for row in membership
         }
+        counts = self.get_project_plan_flight_counts(project_ids)
         for project in projects:
             pid = project["project_id"]
             project["role"] = role_map.get(pid)
             project["last_accessed"] = access_map.get(pid)
             project["org_name"] = org_name_map.get(project.get("org_id") or "")
+            project["plan_count"] = counts.get(pid, {}).get("plan_count", 0)
+            project["flight_count"] = counts.get(pid, {}).get("flight_count", 0)
 
         def sort_key(item):
             return item.get("last_accessed") or item.get("created_at") or ""
@@ -1357,6 +1360,7 @@ class SupabaseClient:
         address_lat: Optional[float] = None,
         address_lng: Optional[float] = None,
         archived: Optional[bool] = None,
+        org_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
@@ -1369,12 +1373,69 @@ class SupabaseClient:
             fields["address_lng"] = address_lng
         if archived is not None:
             fields["archived"] = archived
+        if org_id is not None:
+            fields["org_id"] = org_id
         if not fields:
             return self.get_project(project_id)
         response = (
             self.client.table("projects").update(fields).eq("project_id", project_id).execute()
         )
         return response.data[0] if response.data else None
+
+    def get_project_plan_flight_counts(
+        self, project_ids: List[str]
+    ) -> Dict[str, Dict[str, int]]:
+        """
+        Returns plan_count and flight_count for each project_id.
+
+        plan_count  — number of distinct plan_identifier values in public.plans
+                      for the given project_id.
+        flight_count — number of distinct flight_id rows in public.flights
+                       for the given project_id (flights carry a direct project_id FK).
+
+        Gracefully returns 0 on any error.
+        """
+        counts: Dict[str, Dict[str, int]] = {
+            pid: {"plan_count": 0, "flight_count": 0} for pid in project_ids
+        }
+        if not project_ids or not self.client:
+            return counts
+
+        # Distinct plan_identifier count per project
+        try:
+            resp = (
+                self.client.table("plans")
+                .select("project_id, plan_identifier")
+                .in_("project_id", project_ids)
+                .execute()
+            )
+            seen_identifiers: Dict[str, set] = {pid: set() for pid in project_ids}
+            for row in resp.data or []:
+                pid = row.get("project_id")
+                identifier = row.get("plan_identifier")
+                if pid and pid in seen_identifiers and identifier:
+                    seen_identifiers[pid].add(identifier)
+            for pid in project_ids:
+                counts[pid]["plan_count"] = len(seen_identifiers[pid])
+        except Exception:
+            pass
+
+        # Distinct flight_id count per project (flights have a direct project_id FK)
+        try:
+            resp = (
+                self.client.table("flights")
+                .select("project_id, flight_id")
+                .in_("project_id", project_ids)
+                .execute()
+            )
+            for row in resp.data or []:
+                pid = row.get("project_id")
+                if pid and pid in counts:
+                    counts[pid]["flight_count"] += 1
+        except Exception:
+            pass
+
+        return counts
 
     def delete_project(self, project_id: str) -> bool:
         if not self.client:
