@@ -1,7 +1,6 @@
 {
-  "rootDirectory": "client",
-  "buildCommand": "yarn install && yarn build",
-  "outputDirectory": "build",
+  "buildCommand": "cd client && yarn install && yarn build",
+  "outputDirectory": "client/build",
   "framework": null,
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
