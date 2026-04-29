@@ -260,8 +260,9 @@ const PlanProjectsPage = () => {
               type="button"
               className="btn-menu-item"
               onClick={() => {
+                const projectId = menuOpenId;
                 setMenuOpenId(null);
-                navigate('/plan/test');
+                navigate(`/plan/test?project_id=${projectId}`);
               }}
             >
               Test

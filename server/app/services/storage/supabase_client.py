@@ -1455,16 +1455,32 @@ class SupabaseClient:
     def get_project_role(self, project_id: str, user_id: str) -> Optional[str]:
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
-        response = (
-            self.client.table("project_members")
-            .select("role")
-            .eq("project_id", project_id)
-            .eq("user_id", user_id)
-            .execute()
-        )
-        if response.data:
-            return self._normalize_project_role(response.data[0].get("role"))
-        return None
+        last_exc = None
+        for attempt in range(3):
+            try:
+                response = (
+                    self.client.table("project_members")
+                    .select("role")
+                    .eq("project_id", project_id)
+                    .eq("user_id", user_id)
+                    .execute()
+                )
+                if response.data:
+                    return self._normalize_project_role(response.data[0].get("role"))
+                return None
+            except OSError as e:
+                last_exc = e
+                if getattr(e, "errno", None) == 35 and attempt < 2:
+                    time.sleep(0.25 * (attempt + 1))
+                    continue
+                raise
+            except (httpx.RemoteProtocolError, httpx.ConnectError, ConnectionError) as e:
+                last_exc = e
+                if attempt < 2:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                raise
+        raise last_exc
 
     def list_project_members(self, project_id: str) -> List[Dict[str, Any]]:
         if not self.client:

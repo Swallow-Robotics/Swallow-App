@@ -70,6 +70,7 @@ def create_app(config_name=None):
     from app.routes import main_bp
     from app.routes.projects import projects_bp
     from app.routes.project_members import project_members_bp
+    from app.routes.plans import plans_bp
     from app.api_routes.v1.photos import bp as photos_v1_bp
     from app.api_routes.v1.profile import bp as profile_v1_bp
     from app.api_routes.v1.locations import bp as locations_v1_bp
@@ -79,6 +80,7 @@ def create_app(config_name=None):
     app.register_blueprint(main_bp)
     app.register_blueprint(projects_bp)
     app.register_blueprint(project_members_bp)
+    app.register_blueprint(plans_bp)
     app.register_blueprint(photos_v1_bp, url_prefix="/api/v1/photos")
     app.register_blueprint(profile_v1_bp, url_prefix="/api/v1/profile")
     app.register_blueprint(locations_v1_bp, url_prefix="/api/v1/locations")
