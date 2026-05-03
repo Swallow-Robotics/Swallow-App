@@ -1554,13 +1554,6 @@
   background: rgba(183, 205, 230, 0.2);
 }
 
-.data-table td:last-child {
-  text-align: right;
-}
-
-.data-table--members td:last-child {
-  text-align: left;
-}
 
 /* ===========================
    TOAST NOTIFICATION

@@ -269,6 +269,28 @@ const PlanProjectsPage = () => {
             </button>
             <button
               type="button"
+              className="btn-menu-item"
+              onClick={() => {
+                const projectId = menuOpenId;
+                setMenuOpenId(null);
+                navigate(`/plan/fleet?project_id=${projectId}`);
+              }}
+            >
+              Fleet
+            </button>
+            <button
+              type="button"
+              className="btn-menu-item"
+              onClick={() => {
+                const projectId = menuOpenId;
+                setMenuOpenId(null);
+                navigate(`/plan/sim?project_id=${projectId}`);
+              }}
+            >
+              SIM
+            </button>
+            <button
+              type="button"
               className="btn-menu-item btn-menu-item-destructive"
               onClick={() => {
                 const project = visibleProjects.find(

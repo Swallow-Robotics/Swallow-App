@@ -161,7 +161,25 @@ const PlanFormModal = ({ open, onClose, onSubmit, initialPlan, mode, error }) =>
 
   return (
     <div role="dialog" aria-modal="true" className="modal-overlay">
-      <div className="modal-body" style={{ maxWidth: 780, width: '96%' }}>
+      <div className="modal-body" style={{ maxWidth: 780, width: '96%', position: 'relative' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 'var(--space-sm)',
+            right: 'var(--space-sm)',
+            background: 'none',
+            border: 'none',
+            fontSize: '1.2em',
+            cursor: 'pointer',
+            color: 'var(--color-text-secondary)',
+            lineHeight: 1,
+          }}
+          aria-label="Close modal"
+        >
+          ✕
+        </button>
         <h3 className="modal-header">{mode === 'edit' ? 'Edit Plan' : 'Create Plan'}</h3>
         {displayError ? (
           <p

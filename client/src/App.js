@@ -34,6 +34,8 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 import EmailConfirmedPage from './pages/EmailConfirmedPage';
 import PlanProjectsPage from './pages/PlanProjectsPage';
 import PlanTestPage from './pages/PlanTestPage';
+import PlanFleetPage from './pages/PlanFleetPage';
+import PlanSimPage from './pages/PlanSimPage';
 import HomePage from './pages/HomePage';
 
 const useDomain = () => {
@@ -297,6 +299,22 @@ export function AppRoutes() {
               element={
                 <AuthLayout>
                   <PlanTestPage />
+                </AuthLayout>
+              }
+            />
+            <Route
+              path="fleet"
+              element={
+                <AuthLayout>
+                  <PlanFleetPage />
+                </AuthLayout>
+              }
+            />
+            <Route
+              path="sim"
+              element={
+                <AuthLayout>
+                  <PlanSimPage />
                 </AuthLayout>
               }
             />

@@ -418,7 +418,25 @@ const PlanTestPage = () => {
 
         {deletingPlan ? (
           <div className="modal-overlay" onClick={() => setDeletingPlan(null)}>
-            <div className="modal-body" onClick={e => e.stopPropagation()}>
+            <div className="modal-body" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setDeletingPlan(null)}
+                style={{
+                  position: 'absolute',
+                  top: 'var(--space-sm)',
+                  right: 'var(--space-sm)',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.2em',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)',
+                  lineHeight: 1,
+                }}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
               <h3 className="modal-header">Delete Plan</h3>
               <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
                 Are you sure you want to delete &ldquo;{deletingPlan.plan_name}
