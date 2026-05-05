@@ -16,6 +16,7 @@ const ProjectsPage = () => {
     user,
   } = useAuth();
   const [error, setError] = useState('');
+  const [createError, setCreateError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const navigate = useNavigate();
@@ -109,11 +110,12 @@ const ProjectsPage = () => {
   );
 
   const handleCreate = useCallback(
-    async ({ name, address }) => {
-      setError('');
+    async ({ name, orgId, address }) => {
+      setCreateError('');
       try {
         const project = await apiClient.post('/v1/projects', {
           name,
+          org_id: orgId,
           address,
         });
         await refreshProjects({ redirectWhenEmpty: false, force: true });
@@ -121,7 +123,7 @@ const ProjectsPage = () => {
         setIsModalOpen(false);
         navigate('/view/dashboard');
       } catch (err) {
-        setError(
+        setCreateError(
           err?.payload?.error ||
             err?.message ||
             'Unable to create project. Please try again.'
@@ -197,8 +199,12 @@ const ProjectsPage = () => {
         </div>
         <CreateProjectModal
           open={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => {
+            setIsModalOpen(false);
+            setCreateError('');
+          }}
           onSubmit={handleCreate}
+          error={createError}
         />
         <EditProjectModal
           open={!!editingProject}

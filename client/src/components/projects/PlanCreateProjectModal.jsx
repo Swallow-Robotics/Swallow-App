@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import apiClient from '../../services/api';
 
 const PlanCreateProjectModal = ({ open, onClose, onSubmit, error }) => {
   const [name, setName] = useState('');
   const [orgId, setOrgId] = useState('');
   const [address, setAddress] = useState('');
+  const [organizations, setOrganizations] = useState([]);
 
   useEffect(() => {
     if (open) {
       setName('');
       setOrgId('');
       setAddress('');
+      apiClient
+        .get('/v1/organizations')
+        .then(res => setOrganizations(res.organizations || []))
+        .catch(() => setOrganizations([]));
     }
   }, [open]);
 
@@ -18,8 +24,8 @@ const PlanCreateProjectModal = ({ open, onClose, onSubmit, error }) => {
   const handleSubmit = e => {
     e.preventDefault();
     if (!name.trim()) return;
-    if (!orgId.trim()) return;
-    onSubmit({ name: name.trim(), orgId: orgId.trim(), address: address.trim() || null });
+    if (!orgId) return;
+    onSubmit({ name: name.trim(), orgId, address: address.trim() || null });
   };
 
   return (
@@ -27,7 +33,13 @@ const PlanCreateProjectModal = ({ open, onClose, onSubmit, error }) => {
       <div className="modal-body">
         <h3 className="modal-header">Create Project</h3>
         {error ? (
-          <p style={{ color: '#9B4A2F', margin: '0 0 var(--space-sm) 0', fontSize: '0.9em' }}>
+          <p
+            style={{
+              color: '#9B4A2F',
+              margin: '0 0 var(--space-sm) 0',
+              fontSize: '0.9em',
+            }}
+          >
             {error}
           </p>
         ) : null}
@@ -43,15 +55,20 @@ const PlanCreateProjectModal = ({ open, onClose, onSubmit, error }) => {
             />
           </label>
           <label className="form-label">
-            Organization ID (required)
-            <input
-              type="text"
+            Organization (required)
+            <select
               value={orgId}
               onChange={e => setOrgId(e.target.value)}
-              placeholder="Enter organization UUID"
               required
               className="form-input"
-            />
+            >
+              <option value="">Select an organization</option>
+              {organizations.map(org => (
+                <option key={org.org_id} value={org.org_id}>
+                  {org.org_name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="form-label">
             Address (optional)
