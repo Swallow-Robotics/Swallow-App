@@ -589,8 +589,27 @@ const UploadPlanModal = ({
     >
       <div
         className="modal-body upload-plan-modal__body"
+        style={{ position: 'relative' }}
         onClick={e => e.stopPropagation()}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 'var(--space-sm)',
+            right: 'var(--space-sm)',
+            background: 'none',
+            border: 'none',
+            fontSize: '1.2em',
+            cursor: 'pointer',
+            color: 'var(--color-text-secondary)',
+            lineHeight: 1,
+          }}
+          aria-label="Close modal"
+        >
+          ✕
+        </button>
         <h3 id="upload-plan-title" className="modal-header">
           {isReplaceMode
             ? 'Replace and georeference plan'

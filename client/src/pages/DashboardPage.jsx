@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import maplibregl from 'maplibre-gl';
 import { useAuth } from '../context';
 import apiClient from '../services/api';
-import EditProjectModal from '../components/projects/EditProjectModal';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const StatCard = ({ label, value }) => (
@@ -33,55 +32,29 @@ const StatCard = ({ label, value }) => (
   </div>
 );
 
-
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const {
-    activeProject,
-    projects,
-    setActiveProject,
-    refreshProjects,
-    roleForActiveProject,
-  } = useAuth();
-  const activeProjectId = activeProject?.id || activeProject || null;
-  const projectData =
-    (projects || []).find(p => p.id === activeProjectId) || null;
+  const { activeProject } = useAuth();
+
+  const activeProjectId =
+    activeProject?.project_id ||
+    (typeof activeProject === 'string' ? activeProject : null);
 
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [editingProject, setEditingProject] = useState(null);
-  const [projectToggleWidth, setProjectToggleWidth] = useState(180);
-  const projectSelectRef = useRef(null);
+
   const dashboardMapRef = useRef(null);
   const dashboardMapInstance = useRef(null);
   const dashboardMarkerRef = useRef(null);
   const [mapContainerReady, setMapContainerReady] = useState(false);
 
-  const role = roleForActiveProject ? roleForActiveProject() : null;
-  const normalizedRole = (role || '').toLowerCase();
-  const canManage =
-    normalizedRole === 'owner' || normalizedRole === 'administrator';
+  const project = summary?.project || {};
 
-  const project = summary?.project || projectData || {};
-  const addressCoord = useMemo(
-    () =>
-      project?.address_lat != null && project?.address_lng != null
-        ? { lat: project.address_lat, lng: project.address_lng }
-        : null,
-    [project?.address_lat, project?.address_lng]
-  );
-
-  useEffect(() => {
-    const selectEl = projectSelectRef.current;
-    if (!selectEl || !projects?.length) return;
-    selectEl.style.width = 'auto';
-    const scrollWidth = selectEl.scrollWidth;
-    const buffer = 18;
-    const computed = scrollWidth + buffer;
-    const clamped = Math.min(Math.max(computed, 140), window.innerWidth * 0.9);
-    setProjectToggleWidth(clamped);
-  }, [projects?.length, activeProjectId]);
+  const addressCoord =
+    project?.address_lat != null && project?.address_lng != null
+      ? { lat: project.address_lat, lng: project.address_lng }
+      : null;
 
   useEffect(() => {
     if (!activeProjectId) return;
@@ -105,25 +78,6 @@ const DashboardPage = () => {
       cancelled = true;
     };
   }, [activeProjectId]);
-
-  const handleEditSubmit = useCallback(
-    async values => {
-      if (!editingProject?.id) return;
-      setError('');
-      try {
-        await apiClient.patch(`/v1/projects/${editingProject.id}`, values);
-        setEditingProject(null);
-        await refreshProjects({ redirectWhenEmpty: false, force: true });
-      } catch (err) {
-        setError(
-          err?.payload?.error ||
-            err?.message ||
-            'Unable to update project. Please try again.'
-        );
-      }
-    },
-    [editingProject, refreshProjects]
-  );
 
   useEffect(() => {
     const el = dashboardMapRef.current;
@@ -238,64 +192,35 @@ const DashboardPage = () => {
     return (
       <div style={{ width: '100%', boxSizing: 'border-box' }}>
         <div className="page-header">
+          <div className="page-header__left" />
           <div className="page-header__center">
             <h2 className="page-header__title">Dashboard</h2>
           </div>
+          <div className="page-header__right" />
         </div>
         <p className="page-empty">Select a project to view its dashboard.</p>
       </div>
     );
   }
 
+  const waypointCount = summary != null ? summary.waypoint_count : '—';
   const photoCount = summary != null ? summary.photo_count : '—';
-  const locationCount = summary != null ? summary.location_count : '—';
+  const memberCount = summary != null ? summary.member_count : '—';
   const members = summary?.members || [];
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
       <div className="page-header">
-        <div className="page-header__left">
-          <select
-            className="btn-format-1"
-            ref={projectSelectRef}
-            value={activeProjectId || ''}
-            onChange={e => {
-              const nextId = e.target.value;
-              setActiveProject(nextId || null);
-            }}
-            style={{
-              paddingRight: 28,
-              width: `${projectToggleWidth}px`,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {(projects || []).map(p => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <div className="page-header__left" />
         <div className="page-header__center">
           <h2 className="page-header__title">Dashboard</h2>
+          {project.project_name ? (
+            <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: '0.9em' }}>
+              {project.project_name}
+            </p>
+          ) : null}
         </div>
-        <div className="page-header__right">
-          {canManage && (
-            <button
-              type="button"
-              onClick={() =>
-                setEditingProject({
-                  id: activeProjectId,
-                  name: project.project_name,
-                  address: project.address,
-                })
-              }
-              className="btn-secondary"
-            >
-              Edit
-            </button>
-          )}
-        </div>
+        <div className="page-header__right" />
       </div>
 
       {error && <div className="page-error">{error}</div>}
@@ -317,12 +242,12 @@ const DashboardPage = () => {
               gap: 'var(--space-md)',
             }}
           >
-            <StatCard label="Photos" value={photoCount} />
-            <StatCard label="Locations" value={locationCount} />
-            <StatCard label="Members" value={members.length || '—'} />
+            <StatCard label="No. Waypoints" value={waypointCount} />
+            <StatCard label="No. Photos" value={photoCount} />
+            <StatCard label="No. Project Members" value={memberCount} />
           </div>
 
-          {(project.address || addressCoord) && (
+          {(project.project_address || addressCoord) && (
             <div
               style={{
                 display: 'grid',
@@ -341,14 +266,14 @@ const DashboardPage = () => {
                 >
                   Location
                 </h3>
-                {project.address && (
+                {project.project_address && (
                   <p
                     style={{
                       margin: '0 0 var(--space-xs) 0',
                       color: 'var(--color-text-primary)',
                     }}
                   >
-                    {project.address}
+                    {project.project_address}
                   </p>
                 )}
                 {addressCoord?.lat != null && addressCoord?.lng != null && (
@@ -468,19 +393,47 @@ const DashboardPage = () => {
                 <thead>
                   <tr>
                     <th>Name</th>
+                    <th>Organization</th>
                     <th>Email</th>
+                    <th>Role</th>
                   </tr>
                 </thead>
                 <tbody>
                   {members.map(m => {
-                    const displayName =
-                      [m.first_name, m.last_name].filter(Boolean).join(' ') ||
-                      '—';
+                    const registrationIncomplete =
+                      !m.first_name && !m.last_name;
+                    const displayName = registrationIncomplete
+                      ? null
+                      : [m.first_name, m.last_name]
+                          .filter(Boolean)
+                          .join(' ');
+                    const incompleteStyle = registrationIncomplete
+                      ? { color: 'var(--color-swallow-rust)' }
+                      : {};
                     return (
                       <tr key={m.user_id}>
-                        <td>{displayName}</td>
-                        <td style={{ color: 'var(--color-text-secondary)' }}>
-                          {m.email || '—'}
+                        <td style={incompleteStyle}>
+                          {registrationIncomplete ? (
+                            <span style={{ fontStyle: 'italic' }}>
+                              Registration Incomplete
+                            </span>
+                          ) : (
+                            displayName || ''
+                          )}
+                        </td>
+                        <td style={incompleteStyle}>
+                          {m.org_name || ''}
+                        </td>
+                        <td style={incompleteStyle}>
+                          {m.email || ''}
+                        </td>
+                        <td
+                          style={{
+                            textTransform: 'capitalize',
+                            ...incompleteStyle,
+                          }}
+                        >
+                          {m.role || 'Viewer'}
                         </td>
                       </tr>
                     );
@@ -489,13 +442,6 @@ const DashboardPage = () => {
               </table>
             )}
           </div>
-
-          <EditProjectModal
-            open={!!editingProject}
-            onClose={() => setEditingProject(null)}
-            onSubmit={handleEditSubmit}
-            initial={editingProject || {}}
-          />
         </div>
       )}
     </div>

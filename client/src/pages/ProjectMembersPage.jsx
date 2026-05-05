@@ -27,8 +27,10 @@ const ProjectMembersPage = () => {
   const [deletingMember, setDeletingMember] = useState(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  const project = projects.find(p => p.id === id) || null;
-  const activeProjectId = activeProject?.id || activeProject || null;
+  const project = projects.find(p => p.project_id === id) || null;
+  const activeProjectId =
+    activeProject?.project_id ||
+    (typeof activeProject === 'string' ? activeProject : null);
   const currentProjectId = id || activeProjectId;
 
   const currentRole = useMemo(
@@ -252,7 +254,7 @@ const ProjectMembersPage = () => {
                         name || ''
                       )}
                     </td>
-                    <td />
+                    <td>{member.org_name || ''}</td>
                     <td
                       style={
                         registrationIncomplete
@@ -341,7 +343,31 @@ const ProjectMembersPage = () => {
               if (!isSubmitting) setIsAddOpen(false);
             }}
           >
-            <div className="modal-body" onClick={e => e.stopPropagation()}>
+            <div
+              className="modal-body"
+              style={{ position: 'relative' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSubmitting) setIsAddOpen(false);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 'var(--space-sm)',
+                  right: 'var(--space-sm)',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.2em',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)',
+                  lineHeight: 1,
+                }}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
               <h3 className="modal-header">Add Member</h3>
               <div className="modal-form">
                 <label className="form-label">
@@ -406,7 +432,34 @@ const ProjectMembersPage = () => {
               }
             }}
           >
-            <div className="modal-body" onClick={e => e.stopPropagation()}>
+            <div
+              className="modal-body"
+              style={{ position: 'relative' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSubmitting) {
+                    setIsEditOpen(false);
+                    setEditingMember(null);
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 'var(--space-sm)',
+                  right: 'var(--space-sm)',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.2em',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)',
+                  lineHeight: 1,
+                }}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
               <h3 className="modal-header">Edit Member</h3>
               <div className="modal-form">
                 <label className="form-label">
@@ -467,7 +520,34 @@ const ProjectMembersPage = () => {
               }
             }}
           >
-            <div className="modal-body" onClick={e => e.stopPropagation()}>
+            <div
+              className="modal-body"
+              style={{ position: 'relative' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSubmitting) {
+                    setIsDeleteOpen(false);
+                    setDeletingMember(null);
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 'var(--space-sm)',
+                  right: 'var(--space-sm)',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.2em',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)',
+                  lineHeight: 1,
+                }}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
               <h3 className="modal-header">Remove Member</h3>
               <p style={{ marginTop: 0, color: 'var(--color-text-secondary)' }}>
                 Remove {deletingMember?.email || 'this member'} from the

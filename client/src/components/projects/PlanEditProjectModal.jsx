@@ -24,7 +24,25 @@ const PlanEditProjectModal = ({ open, onClose, onSubmit, initial, error }) => {
 
   return (
     <div role="dialog" aria-modal="true" className="modal-overlay">
-      <div className="modal-body">
+      <div className="modal-body" style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 'var(--space-sm)',
+            right: 'var(--space-sm)',
+            background: 'none',
+            border: 'none',
+            fontSize: '1.2em',
+            cursor: 'pointer',
+            color: 'var(--color-text-secondary)',
+            lineHeight: 1,
+          }}
+          aria-label="Close modal"
+        >
+          ✕
+        </button>
         <h3 className="modal-header">Edit Project</h3>
         {error ? (
           <p style={{ color: '#9B4A2F', margin: '0 0 var(--space-sm) 0', fontSize: '0.9em' }}>

@@ -349,7 +349,7 @@ def invite_project_member(project_id):
             if resolved_role != "Owner":
                 return jsonify({"error": "Project creator must remain an Owner"}), 403
 
-        if supabase_client.get_project_role(project_id, target_user_id):
+        if supabase_client.is_active_project_member(project_id, target_user_id):
             return jsonify({"error": "Member already exists"}), 400
 
         supabase_client.add_project_member(
@@ -411,17 +411,17 @@ def project_summary(project_id):
     except Exception:
         pass
 
-    photo_count, location_count = 0, 0
-    try:
-        photo_count, location_count = supabase_client.get_project_stats(project_id)
-    except Exception:
-        pass
+    photo_stats = supabase_client.get_project_photo_stats([project_id])
+    waypoint_count = photo_stats.get(project_id, {}).get("waypoint_count", 0)
+    photo_count = photo_stats.get(project_id, {}).get("photo_count", 0)
+    member_count = supabase_client.get_active_member_count(project_id)
 
     return jsonify(
         {
             "project": project,
+            "waypoint_count": waypoint_count,
             "photo_count": photo_count,
-            "location_count": location_count,
+            "member_count": member_count,
             "members": members,
         }
     )

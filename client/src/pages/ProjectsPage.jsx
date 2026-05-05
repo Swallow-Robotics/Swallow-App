@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context';
 import apiClient from '../services/api';
-import ProjectList from '../components/projects/ProjectList';
 import CreateProjectModal from '../components/projects/CreateProjectModal';
 import EditProjectModal from '../components/projects/EditProjectModal';
 
@@ -19,24 +18,42 @@ const ProjectsPage = () => {
   const [createError, setCreateError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const navigate = useNavigate();
 
   const activeProjectId = activeProject?.project_id || activeProject || null;
+
+  const visibleProjects = useMemo(
+    () => (projects || []).filter(p => !p.archived),
+    [projects]
+  );
 
   useEffect(() => {
     refreshProjects({ redirectWhenEmpty: false });
   }, [refreshProjects]);
 
+  useEffect(() => {
+    const handler = event => {
+      if (!event.target.closest('.view-row-menu')) {
+        setMenuOpenId(null);
+      }
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, []);
+
   const handleActivate = useCallback(
     project => {
       setActiveProject(project);
-      navigate('/view/map');
+      navigate('/view/dashboard');
     },
     [navigate, setActiveProject]
   );
 
   const handleEdit = useCallback(project => {
     setEditingProject(project);
+    setMenuOpenId(null);
   }, []);
 
   const handleEditSubmit = useCallback(
@@ -61,6 +78,7 @@ const ProjectsPage = () => {
   const handleMembers = useCallback(
     project => {
       if (project?.project_id) {
+        setMenuOpenId(null);
         navigate(`/view/projects/${project.project_id}/members`);
       }
     },
@@ -71,6 +89,7 @@ const ProjectsPage = () => {
     async project => {
       if (!project?.project_id) return;
       setError('');
+      setMenuOpenId(null);
       try {
         await apiClient.delete(`/v1/projects/${project.project_id}`);
         if (activeProjectId === project.project_id) {
@@ -92,6 +111,7 @@ const ProjectsPage = () => {
     async project => {
       if (!project?.project_id) return;
       setError('');
+      setMenuOpenId(null);
       try {
         await apiClient.post(`/v1/projects/${project.project_id}/unjoin`);
         if (activeProjectId === project.project_id) {
@@ -133,11 +153,6 @@ const ProjectsPage = () => {
     [navigate, refreshProjects, setActiveProject]
   );
 
-  const userHasProjects = useMemo(
-    () => (projects || []).length > 0,
-    [projects]
-  );
-
   const handleArchived = useCallback(() => {
     navigate('/view/projects/archived');
   }, [navigate]);
@@ -161,27 +176,200 @@ const ProjectsPage = () => {
             </button>
           </div>
         </div>
-        {error && <div className="page-error">{error}</div>}
+
+        {error ? <div className="page-error">{error}</div> : null}
+
         {isLoading && !user ? (
           <div className="page-empty">Loading...</div>
         ) : (
-          <ProjectList
-            projects={projects}
-            activeProjectId={activeProjectId}
-            onActivate={handleActivate}
-            onEdit={handleEdit}
-            onMembers={handleMembers}
-            onDelete={handleDelete}
-            onUnjoin={handleUnjoin}
-            currentUserId={user?.id || null}
-          />
+          <div
+            className="data-table-container"
+            style={{ overflowX: 'auto', overflowY: 'visible', position: 'relative' }}
+          >
+            <table
+              className="data-table"
+              style={{ minWidth: 700, tableLayout: 'fixed' }}
+            >
+              <colgroup>
+                <col style={{ width: '28%' }} />
+                <col style={{ width: '28%' }} />
+                <col style={{ width: '38%' }} />
+                <col style={{ width: '6%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Organization</th>
+                  <th>Address</th>
+                  <th>&nbsp;</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleProjects.map(project => {
+                  const isActive = project.project_id === activeProjectId;
+                  const role = (project.role || '').toLowerCase();
+                  const isOwner = role === 'owner';
+                  const canManage =
+                    role === 'owner' || role === 'administrator';
+                  const canUnjoin =
+                    role === 'administrator' ||
+                    role === 'editor' ||
+                    role === 'viewer';
+
+                  return (
+                    <tr
+                      key={project.project_id}
+                      onClick={() => handleActivate(project)}
+                      style={{
+                        cursor: 'pointer',
+                        background: isActive
+                          ? 'var(--color-surface-secondary)'
+                          : undefined,
+                      }}
+                    >
+                      <td>{project.project_name || ''}</td>
+                      <td>{project.org_name || ''}</td>
+                      <td>
+                        {project.project_address ? (
+                          project.project_address
+                        ) : (
+                          <span
+                            style={{
+                              color: '#9B4A2F',
+                              fontStyle: 'italic',
+                            }}
+                          >
+                            Project address missing
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <div
+                          className="view-row-menu"
+                          style={{
+                            position: 'relative',
+                            display: 'inline-block',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            aria-label="Project actions"
+                            onClick={e => {
+                              e.stopPropagation();
+                              const rect =
+                                e.currentTarget.getBoundingClientRect();
+                              const menuWidth = 180;
+                              const padding = 8;
+                              const left = Math.min(
+                                rect.left,
+                                window.innerWidth - menuWidth - padding
+                              );
+                              setMenuPosition({
+                                top: rect.bottom + 6,
+                                left: Math.max(padding, left),
+                              });
+                              setMenuOpenId(prev =>
+                                prev === project.project_id
+                                  ? null
+                                  : project.project_id
+                              );
+                            }}
+                            className="btn-secondary btn-icon-sm"
+                          >
+                            ⋮
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!visibleProjects.length ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      No projects found.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         )}
-        {!userHasProjects && (
-          <p className="page-empty">
-            You have no projects yet. Create one to start uploading and viewing
-            photos.
-          </p>
-        )}
+
+        {menuOpenId ? (
+          <div
+            style={{
+              position: 'fixed',
+              top: menuPosition.top,
+              left: menuPosition.left,
+              background: 'var(--color-surface-primary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: 'var(--shadow-lg)',
+              zIndex: 2000,
+              minWidth: 180,
+              padding: 'var(--space-xs) 0',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {(() => {
+              const project = visibleProjects.find(
+                p => p.project_id === menuOpenId
+              );
+              if (!project) return null;
+              const role = (project.role || '').toLowerCase();
+              const isOwner = role === 'owner';
+              const canManage =
+                role === 'owner' || role === 'administrator';
+              const canUnjoin =
+                role === 'administrator' ||
+                role === 'editor' ||
+                role === 'viewer';
+
+              return (
+                <>
+                  {canManage ? (
+                    <button
+                      type="button"
+                      className="btn-menu-item"
+                      onClick={() => handleEdit(project)}
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-menu-item"
+                    onClick={() => handleMembers(project)}
+                  >
+                    Project Members
+                  </button>
+                  {isOwner ? (
+                    <button
+                      type="button"
+                      className="btn-menu-item btn-menu-item-destructive"
+                      onClick={() => handleDelete(project)}
+                    >
+                      Archive
+                    </button>
+                  ) : null}
+                  {canUnjoin ? (
+                    <button
+                      type="button"
+                      className="btn-menu-item"
+                      onClick={() => handleUnjoin(project)}
+                    >
+                      Unjoin
+                    </button>
+                  ) : null}
+                </>
+              );
+            })()}
+          </div>
+        ) : null}
+
         <div
           style={{
             marginTop: 'var(--space-lg)',
@@ -197,6 +385,7 @@ const ProjectsPage = () => {
             Archived Projects
           </button>
         </div>
+
         <CreateProjectModal
           open={isModalOpen}
           onClose={() => {

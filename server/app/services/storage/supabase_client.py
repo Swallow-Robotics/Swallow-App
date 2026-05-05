@@ -1265,6 +1265,7 @@ class SupabaseClient:
             "project_id": project_id,
             "user_id": user_id,
             "role": role,
+            "active_project_member": True,
             "last_accessed": datetime.datetime.utcnow().isoformat() + "Z",
         }
         if created_by is not None:
@@ -1273,6 +1274,23 @@ class SupabaseClient:
             payload, on_conflict="project_id,user_id"
         ).execute()
         return response.data[0] if response.data else None
+
+    def is_active_project_member(self, project_id: str, user_id: str) -> bool:
+        """Return True if the user is an active member of the project."""
+        if not self.client:
+            return False
+        try:
+            resp = (
+                self.client.table("project_members")
+                .select("user_id")
+                .eq("project_id", project_id)
+                .eq("user_id", user_id)
+                .eq("active_project_member", True)
+                .execute()
+            )
+            return bool(resp.data)
+        except Exception:
+            return False
 
     def _normalize_project_role(self, role: Optional[str]) -> Optional[str]:
         if not role:
@@ -1331,6 +1349,7 @@ class SupabaseClient:
             row["project_id"]: row.get("last_accessed") for row in membership
         }
         counts = self.get_project_plan_flight_counts(project_ids)
+        photo_stats = self.get_project_photo_stats(project_ids)
         for project in projects:
             pid = project["project_id"]
             project["role"] = role_map.get(pid)
@@ -1338,6 +1357,8 @@ class SupabaseClient:
             project["org_name"] = org_name_map.get(project.get("org_id") or "")
             project["plan_count"] = counts.get(pid, {}).get("plan_count", 0)
             project["flight_count"] = counts.get(pid, {}).get("flight_count", 0)
+            project["waypoint_count"] = photo_stats.get(pid, {}).get("waypoint_count", 0)
+            project["photo_count"] = photo_stats.get(pid, {}).get("photo_count", 0)
 
         def sort_key(item):
             return item.get("last_accessed") or item.get("created_at") or ""
@@ -1437,6 +1458,92 @@ class SupabaseClient:
 
         return counts
 
+    def get_project_photo_stats(
+        self, project_ids: List[str]
+    ) -> Dict[str, Dict[str, int]]:
+        """
+        Returns waypoint_count and photo_count per project for active photos.
+
+        waypoint_count — distinct waypoint_id values in public.photos where active_photo = TRUE,
+                         reached via flights.project_id.
+        photo_count    — count of photo_id rows in public.photos where active_photo = TRUE,
+                         reached via flights.project_id.
+
+        Gracefully returns 0 on any error.
+        """
+        stats: Dict[str, Dict[str, int]] = {
+            pid: {"waypoint_count": 0, "photo_count": 0} for pid in project_ids
+        }
+        if not project_ids or not self.client:
+            return stats
+
+        try:
+            flight_resp = (
+                self.client.table("flights")
+                .select("flight_id, project_id")
+                .in_("project_id", project_ids)
+                .execute()
+            )
+            flight_to_project: Dict[str, str] = {}
+            for row in flight_resp.data or []:
+                fid = row.get("flight_id")
+                pid = row.get("project_id")
+                if fid and pid:
+                    flight_to_project[fid] = pid
+
+            flight_ids = list(flight_to_project.keys())
+            if not flight_ids:
+                return stats
+
+            photo_resp = (
+                self.client.table("photos")
+                .select("flight_id, waypoint_id, photo_id")
+                .in_("flight_id", flight_ids)
+                .eq("active_photo", True)
+                .execute()
+            )
+
+            seen_waypoints: Dict[str, set] = {pid: set() for pid in project_ids}
+            for row in photo_resp.data or []:
+                fid = row.get("flight_id")
+                if not fid:
+                    continue
+                pid = flight_to_project.get(fid)
+                if not pid or pid not in stats:
+                    continue
+                waypoint_id = row.get("waypoint_id")
+                if waypoint_id:
+                    seen_waypoints[pid].add(waypoint_id)
+                if row.get("photo_id"):
+                    stats[pid]["photo_count"] += 1
+
+            for pid in project_ids:
+                stats[pid]["waypoint_count"] = len(seen_waypoints[pid])
+
+        except Exception:
+            pass
+
+        return stats
+
+    def get_active_member_count(self, project_id: str) -> int:
+        """Count distinct active members (active_project_member = TRUE) for a project."""
+        if not self.client:
+            return 0
+        try:
+            resp = (
+                self.client.table("project_members")
+                .select("user_id", count="exact")
+                .eq("project_id", project_id)
+                .eq("active_project_member", True)
+                .execute()
+            )
+            count = getattr(resp, "count", None)
+            if count is None:
+                count = len(resp.data or [])
+            return count
+        except Exception:
+            return 0
+
     def delete_project(self, project_id: str) -> bool:
         if not self.client:
             raise RuntimeError("Supabase client not initialized")
@@ -1502,6 +1609,7 @@ class SupabaseClient:
             self.client.table("project_members")
             .select("user_id, role")
             .eq("project_id", project_id)
+            .eq("active_project_member", True)
             .execute()
         )
         members = members_resp.data or []
@@ -1516,9 +1624,27 @@ class SupabaseClient:
         )
         profiles = profiles_resp.data or []
         profile_map = {p["user_id"]: p for p in profiles}
+
+        org_ids = list(
+            {p["org_id"] for p in profiles if p.get("org_id")}
+        )
+        org_name_map: Dict[str, str] = {}
+        if org_ids:
+            orgs_resp = (
+                self.client.table("organizations")
+                .select("org_id, org_name")
+                .in_("org_id", org_ids)
+                .execute()
+            )
+            org_name_map = {
+                o["org_id"]: o["org_name"]
+                for o in (orgs_resp.data or [])
+            }
+
         result = []
         for m in members:
             user_profile = profile_map.get(m["user_id"], {})
+            org_id = user_profile.get("org_id")
             result.append(
                 {
                     "user_id": m["user_id"],
@@ -1526,7 +1652,8 @@ class SupabaseClient:
                     "email": user_profile.get("email"),
                     "first_name": user_profile.get("first_name"),
                     "last_name": user_profile.get("last_name"),
-                    "org_id": user_profile.get("org_id"),
+                    "org_id": org_id,
+                    "org_name": org_name_map.get(org_id) if org_id else None,
                 }
             )
         return result
@@ -1550,7 +1677,7 @@ class SupabaseClient:
             raise RuntimeError("Supabase client not initialized")
         response = (
             self.client.table("project_members")
-            .delete()
+            .update({"active_project_member": False})
             .eq("project_id", project_id)
             .eq("user_id", user_id)
             .execute()

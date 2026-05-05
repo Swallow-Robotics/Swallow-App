@@ -80,7 +80,7 @@ def add_member(project_id):
     if role == "Owner" and actor_role != "owner":
         return _json_error("Only owners may assign owner role", 403)
 
-    if supabase_client.get_project_role(project_id, target_user_id):
+    if supabase_client.is_active_project_member(project_id, target_user_id):
         return _json_error("Member already exists", 400)
 
     actor_user_id = permission.get("user_id")

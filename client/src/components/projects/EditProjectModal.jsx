@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
 
 const EditProjectModal = ({ open, onClose, onSubmit, initial }) => {
-  const [name, setName] = useState(initial?.name || '');
-  const [address, setAddress] = useState(initial?.address || '');
+  const [name, setName] = useState(
+    initial?.project_name || initial?.name || ''
+  );
+  const [address, setAddress] = useState(
+    initial?.project_address || initial?.address || ''
+  );
 
   useEffect(() => {
     if (open) {
-      setName(initial?.name || '');
-      setAddress(initial?.address || '');
+      setName(initial?.project_name || initial?.name || '');
+      setAddress(initial?.project_address || initial?.address || '');
     }
   }, [open, initial]);
 
@@ -24,7 +28,25 @@ const EditProjectModal = ({ open, onClose, onSubmit, initial }) => {
 
   return (
     <div role="dialog" aria-modal="true" className="modal-overlay">
-      <div className="modal-body">
+      <div className="modal-body" style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 'var(--space-sm)',
+            right: 'var(--space-sm)',
+            background: 'none',
+            border: 'none',
+            fontSize: '1.2em',
+            cursor: 'pointer',
+            color: 'var(--color-text-secondary)',
+            lineHeight: 1,
+          }}
+          aria-label="Close modal"
+        >
+          ✕
+        </button>
         <h3 className="modal-header">Edit Project</h3>
         <form onSubmit={handleSubmit} className="modal-form">
           <label className="form-label">
