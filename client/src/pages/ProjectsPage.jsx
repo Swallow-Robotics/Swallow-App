@@ -207,14 +207,6 @@ const ProjectsPage = () => {
               <tbody>
                 {visibleProjects.map(project => {
                   const isActive = project.project_id === activeProjectId;
-                  const role = (project.role || '').toLowerCase();
-                  const isOwner = role === 'owner';
-                  const canManage =
-                    role === 'owner' || role === 'administrator';
-                  const canUnjoin =
-                    role === 'administrator' ||
-                    role === 'editor' ||
-                    role === 'viewer';
 
                   return (
                     <tr

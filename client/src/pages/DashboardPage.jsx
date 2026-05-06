@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import maplibregl from 'maplibre-gl';
 import { useAuth } from '../context';
@@ -51,10 +51,13 @@ const DashboardPage = () => {
 
   const project = summary?.project || {};
 
-  const addressCoord =
-    project?.address_lat != null && project?.address_lng != null
-      ? { lat: project.address_lat, lng: project.address_lng }
-      : null;
+  const addressCoord = useMemo(
+    () =>
+      project?.address_lat != null && project?.address_lng != null
+        ? { lat: project.address_lat, lng: project.address_lng }
+        : null,
+    [project?.address_lat, project?.address_lng]
+  );
 
   useEffect(() => {
     if (!activeProjectId) return;
