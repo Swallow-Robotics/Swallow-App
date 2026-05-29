@@ -2,11 +2,13 @@ from flask import Blueprint, request, jsonify, g, send_file
 import os
 import math
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 import io
 import time
 import zipfile
 import requests
+from werkzeug.utils import secure_filename
+from PIL import Image, ImageFile, ImageOps
 from app.middleware.auth_middleware import jwt_required
 from app.services.auth.permissions import (
     DEFAULT_DENIED_MESSAGE,
@@ -638,3 +640,402 @@ def get_photo_stats():
         ),
         410,
     )
+
+
+# ---------------------------------------------------------------------------
+# Flight-scoped photo schema (photos linked to flights/waypoints).
+# Photos no longer carry project_id directly; the project is resolved through
+# flights.project_id. These endpoints power the updated view/photos page.
+# ---------------------------------------------------------------------------
+
+ALLOWED_PHOTO_EXTENSIONS = {"jpg", "jpeg", "png"}
+ALLOWED_PHOTO_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png"}
+MAX_PHOTO_UPLOAD_BYTES = 20 * 1024 * 1024
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+
+def _generate_thumbnail_bytes(
+    file_bytes: bytes, mime_type: str
+) -> Optional[Tuple[bytes, str, str]]:
+    """Build a lighter thumbnail. Returns (bytes, ext, content_type) or None."""
+    try:
+        image = Image.open(io.BytesIO(file_bytes))
+        image.load()
+    except Exception:
+        return None
+
+    try:
+        image = ImageOps.exif_transpose(image)
+    except Exception:
+        pass
+
+    thumb = image.copy()
+    thumb.thumbnail((512, 512), Image.Resampling.LANCZOS)
+
+    has_alpha = thumb.mode in ("RGBA", "LA") or (
+        thumb.mode == "P" and "transparency" in thumb.info
+    )
+    use_png = mime_type == "image/png" and has_alpha
+    buffer = io.BytesIO()
+    try:
+        if use_png:
+            if thumb.mode not in ("RGBA", "LA"):
+                thumb = thumb.convert("RGBA")
+            thumb.save(buffer, format="PNG", optimize=True)
+            return buffer.getvalue(), "png", "image/png"
+        if thumb.mode not in ("RGB", "L"):
+            thumb = thumb.convert("RGB")
+        thumb.save(buffer, format="JPEG", quality=85, optimize=True)
+        return buffer.getvalue(), "jpg", "image/jpeg"
+    except Exception:
+        return None
+
+
+def _current_user_id_or_error() -> Tuple[Optional[str], Optional[Tuple[dict, int]]]:
+    current_user = getattr(g, "current_user", None) or {}
+    user_id = current_user.get("id")
+    if not user_id:
+        return None, ({"error": "forbidden", "message": "Authentication required"}, 401)
+    return user_id, None
+
+
+def _flight_for_id(flight_id: str) -> Optional[Dict[str, Any]]:
+    """Return the flight row (flight_id, project_id, plan_id) or None."""
+    if not flight_id:
+        return None
+    resp = (
+        supabase_client.client.table("flights")
+        .select("flight_id, project_id, plan_id")
+        .eq("flight_id", flight_id)
+        .limit(1)
+        .execute()
+    )
+    return (resp.data or [None])[0]
+
+
+def _photo_extension(filename: str, mime_type: str) -> str:
+    _, ext = os.path.splitext(filename or "")
+    cleaned = "".join(ch for ch in ext.lstrip(".").lower() if ch.isalnum())
+    if not cleaned and mime_type:
+        cleaned = (mime_type.split("/")[-1] if "/" in mime_type else mime_type).lower()
+    return cleaned or "jpg"
+
+
+def _to_float_or_none(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _serialize_flight_photo(
+    record: Dict[str, Any], waypoint_names: Dict[str, str]
+) -> Dict[str, Any]:
+    key = record.get("r2_path")
+    resolved_url = record.get("r2_url") or (
+        r2_client.resolve_url(key) if key else None
+    )
+    thumb_path = record.get("thumbnail_r2_path")
+    resolved_thumb_url = record.get("thumbnail_r2_url") or (
+        r2_client.resolve_url(thumb_path) if thumb_path else None
+    )
+    waypoint_id = record.get("waypoint_id")
+    return {
+        "photo_id": record.get("photo_id"),
+        "flight_id": record.get("flight_id"),
+        "drone_alt": record.get("drone_alt"),
+        "drone_lat": record.get("drone_lat"),
+        "drone_lng": record.get("drone_lng"),
+        "taken_at": record.get("taken_at"),
+        "uploaded_at": record.get("uploaded_at"),
+        "r2_path": key,
+        "r2_url": resolved_url,
+        "thumbnail_r2_path": thumb_path,
+        "thumbnail_r2_url": resolved_thumb_url,
+        "drone_heading": record.get("drone_heading"),
+        "gimbal_position": record.get("gimbal_position"),
+        "waypoint_id": waypoint_id,
+        "waypoint_name": waypoint_names.get(waypoint_id) if waypoint_id else None,
+        "active_photo": record.get("active_photo"),
+    }
+
+
+@bp.route("/project-photos", methods=["GET"])
+@jwt_required
+def list_project_photos():
+    """List active photos for a project, resolved through its flights."""
+    if not supabase_client.client:
+        return jsonify({"error": "Supabase client not configured"}), 500
+
+    user_id, error = _current_user_id_or_error()
+    if error:
+        payload, status = error
+        return jsonify(payload), status
+
+    try:
+        project_id = _normalize_uuid(request.args.get("project_id"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+
+    permission = require_role(project_id, VIEW_ROLES, user_id=user_id)
+    if isinstance(permission, tuple):
+        payload, status = permission
+        return jsonify(payload), status
+
+    try:
+        flights_resp = (
+            supabase_client.client.table("flights")
+            .select("flight_id")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        flight_ids = [f["flight_id"] for f in (flights_resp.data or [])]
+        if not flight_ids:
+            return jsonify({"photos": []})
+
+        photos_resp = (
+            supabase_client.client.table("photos")
+            .select("*")
+            .in_("flight_id", flight_ids)
+            .eq("active_photo", True)
+            .order("taken_at", desc=True)
+            .execute()
+        )
+        photos = photos_resp.data or []
+
+        waypoint_ids = list({p["waypoint_id"] for p in photos if p.get("waypoint_id")})
+        waypoint_names: Dict[str, str] = {}
+        if waypoint_ids:
+            wp_resp = (
+                supabase_client.client.table("waypoints")
+                .select("waypoint_id, waypoint_name")
+                .in_("waypoint_id", waypoint_ids)
+                .execute()
+            )
+            waypoint_names = {
+                w["waypoint_id"]: w.get("waypoint_name") for w in wp_resp.data or []
+            }
+
+        serialized = [_serialize_flight_photo(p, waypoint_names) for p in photos]
+        return jsonify({"photos": serialized})
+    except Exception as exc:
+        return jsonify({"error": f"Failed to query photos: {exc}"}), 500
+
+
+@bp.route("/manual-upload", methods=["POST"])
+@jwt_required
+def manual_upload_photo():
+    """Upload a single photo with manually-entered flight metadata."""
+    if not supabase_client.client:
+        return jsonify({"error": "Database not configured"}), 500
+    if not r2_client.client:
+        config_msg = getattr(r2_client, "_config_error", None) or "Check R2 env vars."
+        return jsonify({"error": f"Storage not configured. {config_msg}"}), 500
+
+    user_id, error = _current_user_id_or_error()
+    if error:
+        payload, status = error
+        return jsonify(payload), status
+
+    flight_id = (request.form.get("flight_id") or "").strip()
+    if not flight_id:
+        return jsonify({"error": "flight_id is required"}), 400
+
+    flight = _flight_for_id(flight_id)
+    if not flight:
+        return jsonify({"error": "Flight not found"}), 404
+    project_id = flight.get("project_id")
+
+    permission = require_role(project_id, MANAGE_PHOTO_ROLES, user_id=user_id)
+    if isinstance(permission, tuple):
+        payload, status = permission
+        return jsonify(payload), status
+
+    file_item = request.files.get("file")
+    if not file_item or not getattr(file_item, "filename", None):
+        return jsonify({"error": "Photo file is required"}), 400
+
+    mime_type = (getattr(file_item, "mimetype", "") or "").lower()
+    if mime_type not in ALLOWED_PHOTO_MIME_TYPES:
+        return jsonify({"error": "Invalid file type. JPEG or PNG required"}), 400
+
+    file_bytes = file_item.read()
+    if not file_bytes:
+        return jsonify({"error": "Uploaded file is empty"}), 400
+    if len(file_bytes) > MAX_PHOTO_UPLOAD_BYTES:
+        return jsonify({"error": "File too large (max 20MB)"}), 413
+
+    photo_id = str(uuid4())
+    safe_name = secure_filename(file_item.filename or "") or "photo"
+    extension = _photo_extension(safe_name, mime_type)
+    if extension not in ALLOWED_PHOTO_EXTENSIONS:
+        return jsonify({"error": "Invalid file type. JPEG or PNG required"}), 400
+
+    try:
+        r2_key = r2_client.upload_project_photo(
+            project_id, photo_id, file_bytes, extension, content_type=mime_type
+        )
+    except Exception as exc:
+        return jsonify({"error": f"Upload failed: {exc}"}), 500
+    if not r2_key:
+        return jsonify({"error": "Failed to upload to storage"}), 502
+
+    r2_url = r2_client.get_file_url(r2_key)
+
+    uploaded_keys: List[str] = [r2_key]
+    thumbnail_key = None
+    thumbnail_url = None
+    thumbnail = _generate_thumbnail_bytes(file_bytes, mime_type)
+    if thumbnail:
+        thumb_bytes, thumb_ext, thumb_mime = thumbnail
+        thumbnail_key = f"projects/{project_id}/photos/{photo_id}_thumb.{thumb_ext}"
+        try:
+            uploaded = r2_client.upload_bytes(
+                thumb_bytes, thumbnail_key, content_type=thumb_mime
+            )
+        except Exception:
+            uploaded = False
+        if uploaded:
+            thumbnail_url = r2_client.get_file_url(thumbnail_key)
+            uploaded_keys.append(thumbnail_key)
+        else:
+            thumbnail_key = None
+
+    row = {
+        "photo_id": photo_id,
+        "flight_id": flight_id,
+        "waypoint_id": (request.form.get("waypoint_id") or "").strip() or None,
+        "drone_alt": _to_float_or_none(request.form.get("drone_alt")),
+        "drone_lat": _to_float_or_none(request.form.get("drone_lat")),
+        "drone_lng": _to_float_or_none(request.form.get("drone_lng")),
+        "taken_at": (request.form.get("taken_at") or "").strip() or None,
+        "drone_heading": _to_float_or_none(request.form.get("drone_heading")),
+        "gimbal_position": _to_float_or_none(request.form.get("gimbal_position")),
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "r2_path": r2_key,
+        "r2_url": r2_url,
+        "thumbnail_r2_path": thumbnail_key,
+        "thumbnail_r2_url": thumbnail_url,
+        "active_photo": True,
+    }
+
+    try:
+        resp = supabase_client.client.table("photos").insert(row).execute()
+    except Exception as exc:
+        for key in uploaded_keys:
+            r2_client.delete_file(key)
+        return jsonify({"error": f"Failed to create photo record: {exc}"}), 500
+
+    if not resp.data:
+        for key in uploaded_keys:
+            r2_client.delete_file(key)
+        return jsonify({"error": "Could not persist photo metadata"}), 502
+
+    return jsonify({"photo": resp.data[0]}), 201
+
+
+@bp.route("/manage/<photo_id>", methods=["PATCH"])
+@jwt_required
+def edit_flight_photo(photo_id):
+    """Edit manually-entered metadata for a photo."""
+    if not supabase_client.client:
+        return jsonify({"error": "Database not configured"}), 500
+
+    user_id, error = _current_user_id_or_error()
+    if error:
+        payload, status = error
+        return jsonify(payload), status
+
+    resp = (
+        supabase_client.client.table("photos")
+        .select("flight_id")
+        .eq("photo_id", photo_id)
+        .limit(1)
+        .execute()
+    )
+    record = (resp.data or [None])[0]
+    if not record:
+        return jsonify({"error": "Photo not found"}), 404
+
+    flight = _flight_for_id(record.get("flight_id"))
+    if not flight:
+        return jsonify({"error": "Flight not found for photo"}), 404
+
+    permission = require_role(
+        flight.get("project_id"), MANAGE_PHOTO_ROLES, user_id=user_id
+    )
+    if isinstance(permission, tuple):
+        payload, status = permission
+        return jsonify(payload), status
+
+    payload = request.get_json() or {}
+    updates: Dict[str, Any] = {}
+    for field in ("drone_alt", "drone_lat", "drone_lng", "drone_heading", "gimbal_position"):
+        if field in payload:
+            updates[field] = _to_float_or_none(payload.get(field))
+    if "taken_at" in payload:
+        updates["taken_at"] = (payload.get("taken_at") or "").strip() or None
+
+    if not updates:
+        return jsonify({"error": "No editable fields provided"}), 400
+
+    try:
+        updated = (
+            supabase_client.client.table("photos")
+            .update(updates)
+            .eq("photo_id", photo_id)
+            .execute()
+        )
+    except Exception as exc:
+        return jsonify({"error": f"Failed to update photo: {exc}"}), 500
+
+    return jsonify({"photo": (updated.data or [None])[0]})
+
+
+@bp.route("/manage/<photo_id>", methods=["DELETE"])
+@jwt_required
+def deactivate_flight_photo(photo_id):
+    """Soft-delete a photo by setting active_photo=FALSE."""
+    if not supabase_client.client:
+        return jsonify({"error": "Database not configured"}), 500
+
+    user_id, error = _current_user_id_or_error()
+    if error:
+        payload, status = error
+        return jsonify(payload), status
+
+    resp = (
+        supabase_client.client.table("photos")
+        .select("flight_id")
+        .eq("photo_id", photo_id)
+        .limit(1)
+        .execute()
+    )
+    record = (resp.data or [None])[0]
+    if not record:
+        return jsonify({"error": "Photo not found"}), 404
+
+    flight = _flight_for_id(record.get("flight_id"))
+    if not flight:
+        return jsonify({"error": "Flight not found for photo"}), 404
+
+    permission = require_role(
+        flight.get("project_id"), MANAGE_PHOTO_ROLES, user_id=user_id
+    )
+    if isinstance(permission, tuple):
+        payload, status = permission
+        return jsonify(payload), status
+
+    try:
+        supabase_client.client.table("photos").update({"active_photo": False}).eq(
+            "photo_id", photo_id
+        ).execute()
+    except Exception as exc:
+        return jsonify({"error": f"Failed to delete photo: {exc}"}), 500
+
+    return jsonify({"message": "Photo deleted successfully"})

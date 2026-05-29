@@ -6,6 +6,7 @@ export { default as PlanPage } from './PlanPage';
 export { default as PlanProjectsPage } from './PlanProjectsPage';
 export { default as PlanTestPage } from './PlanTestPage';
 export { default as PhotosPage } from './UploadPage';
+export { default as PhotosDatePage } from './PhotosDatePage';
 export { default as ProfilePage } from './ProfilePage';
 export { default as ProjectsPage } from './ProjectsPage';
 export { default as ArchivedProjectsPage } from './ArchivedProjectsPage';

@@ -21,6 +21,7 @@ import {
   FlyMapPage,
   PlanPage,
   PhotosPage,
+  PhotosDatePage,
   ProfilePage,
   ProjectsPage,
   ArchivedProjectsPage,
@@ -56,11 +57,7 @@ const Header = () => {
     <header className="App-header">
       <div className="App-header__inner">
         <div className="App-header__left">
-          <Link
-            to="/"
-            className="App-header__logoLink"
-            aria-label="Go to Home"
-          >
+          <Link to="/" className="App-header__logoLink" aria-label="Go to Home">
             <img
               src={`${process.env.PUBLIC_URL}/logo192-white.png`}
               alt="Swallow Robotics"
@@ -200,10 +197,7 @@ export function AppRoutes() {
 
           {/* View domain */}
           <Route path="/view">
-            <Route
-              index
-              element={<Navigate to="/view/projects" replace />}
-            />
+            <Route index element={<Navigate to="/view/projects" replace />} />
             <Route
               path="map"
               element={
@@ -225,6 +219,14 @@ export function AppRoutes() {
               element={
                 <AuthLayout>
                   <PhotosPage />
+                </AuthLayout>
+              }
+            />
+            <Route
+              path="photos/date/:date"
+              element={
+                <AuthLayout>
+                  <PhotosDatePage />
                 </AuthLayout>
               }
             />
@@ -282,10 +284,7 @@ export function AppRoutes() {
 
           {/* Plan domain */}
           <Route path="/plan">
-            <Route
-              index
-              element={<Navigate to="/plan/projects" replace />}
-            />
+            <Route index element={<Navigate to="/plan/projects" replace />} />
             <Route
               path="projects"
               element={
@@ -321,7 +320,10 @@ export function AppRoutes() {
           </Route>
 
           {/* Legacy redirect */}
-          <Route path="/upload" element={<Navigate to="/view/photos" replace />} />
+          <Route
+            path="/upload"
+            element={<Navigate to="/view/photos" replace />}
+          />
 
           {/* Root and catch-all */}
           <Route
