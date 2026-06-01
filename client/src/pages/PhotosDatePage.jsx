@@ -4,6 +4,7 @@ import { useAuth } from '../context';
 import apiClient from '../services/api';
 import { dateKeyFromIso, dateLabelFromKey } from '../utils/dateTime';
 import EditPhotoModal from '../components/photo/EditPhotoModal';
+import { downloadPhotosZip, photoFileName } from '../services/photoDownload';
 
 const PhotosDatePage = () => {
   const { date } = useParams();
@@ -20,6 +21,9 @@ const PhotosDatePage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [editingPhoto, setEditingPhoto] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const photoRole = (
     roleForActiveProject ? roleForActiveProject() : ''
@@ -81,6 +85,44 @@ const PhotosDatePage = () => {
     }
   };
 
+  const toggleSelect = photoId => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(photoId)) next.delete(photoId);
+      else next.add(photoId);
+      return next;
+    });
+  };
+
+  const buildItems = list =>
+    list
+      .filter(photo => photo.r2_url)
+      .map(photo => ({ url: photo.r2_url, name: photoFileName(photo) }));
+
+  const runDownload = async list => {
+    setError('');
+    const items = buildItems(list);
+    if (!items.length) {
+      setError('No photos available to download.');
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      await downloadPhotosZip(items, `photos-${date}.zip`);
+    } catch (err) {
+      setError(err?.message || 'Download failed.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadSelected = async () => {
+    const selected = datePhotos.filter(photo =>
+      selectedIds.has(photo.photo_id),
+    );
+    await runDownload(selected);
+  };
+
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
       <div className="page-header">
@@ -119,8 +161,31 @@ const PhotosDatePage = () => {
           <div
             key={photo.photo_id}
             className="photo-grid-card"
-            onClick={() => navigate(`/view/photos/${photo.photo_id}/options`)}
+            onClick={() => {
+              if (selectionMode) {
+                toggleSelect(photo.photo_id);
+              } else {
+                navigate(`/view/photos/${photo.photo_id}/options`);
+              }
+            }}
           >
+            {selectionMode ? (
+              <input
+                type="checkbox"
+                checked={selectedIds.has(photo.photo_id)}
+                onChange={() => toggleSelect(photo.photo_id)}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  top: 'var(--space-sm)',
+                  left: 'var(--space-sm)',
+                  zIndex: 2,
+                  width: 18,
+                  height: 18,
+                  accentColor: 'var(--color-primary)',
+                }}
+              />
+            ) : null}
             <div
               className="photo-menu"
               style={{
@@ -231,6 +296,61 @@ const PhotosDatePage = () => {
           </div>
         ))}
       </div>
+
+      {datePhotos.length ? (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 'var(--space-sm)',
+            marginTop: 'var(--space-lg)',
+          }}
+        >
+          {selectionMode ? (
+            <>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setSelectionMode(false);
+                  setSelectedIds(new Set());
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleDownloadSelected}
+                disabled={isDownloading || !selectedIds.size}
+              >
+                {isDownloading ? 'Downloading…' : 'Download'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => runDownload(datePhotos)}
+                disabled={isDownloading}
+              >
+                {isDownloading ? 'Downloading…' : 'Download all'}
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  setSelectedIds(new Set());
+                  setSelectionMode(true);
+                }}
+              >
+                Download by photo
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
 
       <EditPhotoModal
         open={!!editingPhoto}

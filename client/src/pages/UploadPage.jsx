@@ -4,6 +4,24 @@ import { useAuth } from '../context';
 import apiClient from '../services/api';
 import { dateKeyFromIso, dateLabelFromKey } from '../utils/dateTime';
 import UploadPhotosModal from '../components/photo/UploadPhotosModal';
+import DownloadByFolderModal from '../components/photo/DownloadByFolderModal';
+import { downloadPhotosZip, photoFileName } from '../services/photoDownload';
+
+const FolderIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="var(--color-primary)"
+    strokeWidth="1.75"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3 7.5a1.5 1.5 0 0 1 1.5-1.5h4l2 2.5h8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z" />
+  </svg>
+);
 
 const PhotosPage = () => {
   const { activeProject, roleForActiveProject } = useAuth();
@@ -20,6 +38,8 @@ const PhotosPage = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isFolderDownloadOpen, setIsFolderDownloadOpen] = useState(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   const photoRole = (
     roleForActiveProject ? roleForActiveProject() : ''
@@ -67,6 +87,28 @@ const PhotosPage = () => {
       .map(([key, count]) => ({ key, count }))
       .sort((a, b) => (a.key < b.key ? 1 : -1));
   }, [photos]);
+
+  const handleDownloadAll = async () => {
+    setError('');
+    const items = (photos || [])
+      .filter(photo => photo.r2_url && dateKeyFromIso(photo.taken_at))
+      .map(photo => ({
+        url: photo.r2_url,
+        name: `${dateKeyFromIso(photo.taken_at)}/${photoFileName(photo)}`,
+      }));
+    if (!items.length) {
+      setError('No photos available to download.');
+      return;
+    }
+    setIsDownloadingAll(true);
+    try {
+      await downloadPhotosZip(items);
+    } catch (err) {
+      setError(err?.message || 'Download failed.');
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
 
   if (!activeProjectId) {
     return (
@@ -155,7 +197,7 @@ const PhotosPage = () => {
                 fontWeight: 'var(--font-weight-semibold)',
               }}
             >
-              <span aria-hidden="true">📁</span>
+              <FolderIcon />
               {dateLabelFromKey(folder.key)}
             </span>
             <span
@@ -170,11 +212,44 @@ const PhotosPage = () => {
         ))}
       </div>
 
+      {folders.length ? (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 'var(--space-sm)',
+            marginTop: 'var(--space-lg)',
+          }}
+        >
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleDownloadAll}
+            disabled={isDownloadingAll}
+          >
+            {isDownloadingAll ? 'Downloading…' : 'Download all'}
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setIsFolderDownloadOpen(true)}
+          >
+            Download by folder
+          </button>
+        </div>
+      ) : null}
+
       <UploadPhotosModal
         open={isUploadOpen}
         projectId={activeProjectId}
         onClose={() => setIsUploadOpen(false)}
         onUploaded={fetchPhotos}
+      />
+
+      <DownloadByFolderModal
+        open={isFolderDownloadOpen}
+        photos={photos}
+        onClose={() => setIsFolderDownloadOpen(false)}
       />
     </div>
   );

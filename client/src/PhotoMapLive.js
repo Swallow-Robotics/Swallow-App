@@ -10,7 +10,6 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from './context';
 import EditLocationModal from './components/map/EditLocationModal';
-import { getApiCandidates } from './utils/apiEnv';
 import { useProjectMapData } from './hooks/useProjectMapData';
 import { formatLocalDateTimeParts } from './utils/mapDataUtils';
 import {
@@ -31,8 +30,6 @@ const SATELLITE_RASTER_SOURCE = {
   attribution:
     'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
 };
-
-const envApiBases = getApiCandidates();
 
 class BasemapToggleControl {
   constructor({ onSelect, getActive }) {
@@ -158,7 +155,7 @@ const PhotoMapLive = () => {
     refreshCounter,
     {
       projectMarkerOverride,
-    }
+    },
   );
   const activeStyleRef = useRef('standard');
   const satelliteHiddenLayersRef = useRef({});
@@ -223,7 +220,7 @@ const PhotoMapLive = () => {
       if (!photo?.id) return;
       navigate(`/view/photos/${photo.id}/options`, { state: { from: 'map' } });
     },
-    [navigate]
+    [navigate],
   );
 
   useEffect(() => {
@@ -245,7 +242,7 @@ const PhotoMapLive = () => {
       photoPopupRef,
       projectLocationPopupRef,
     }),
-    []
+    [],
   );
 
   const clearMarkersCallback = useCallback(() => {
@@ -285,7 +282,7 @@ const PhotoMapLive = () => {
     if (typeof mapInstance.current?.addControl === 'function') {
       mapInstance.current.addControl(
         new maplibregl.NavigationControl(),
-        'top-right'
+        'top-right',
       );
     }
 
@@ -325,13 +322,13 @@ const PhotoMapLive = () => {
           const style = map.getStyle();
           if (style && Array.isArray(style.layers)) {
             const backgroundLayer = style.layers.find(
-              l => l.type === 'background'
+              l => l.type === 'background',
             );
             if (backgroundLayer) {
               map.setPaintProperty(
                 backgroundLayer.id,
                 'background-color',
-                'rgba(0,0,0,0)'
+                'rgba(0,0,0,0)',
               );
             }
           }
@@ -349,7 +346,7 @@ const PhotoMapLive = () => {
                   minzoom: 0,
                   maxzoom: 22,
                 },
-                firstLayerId
+                firstLayerId,
               );
             } else {
               map.addLayer({
@@ -403,7 +400,7 @@ const PhotoMapLive = () => {
                   const prevPaintColor = map.getPaintProperty(id, 'line-color');
                   const prevPaintOpacity = map.getPaintProperty(
                     id,
-                    'line-opacity'
+                    'line-opacity',
                   );
                   const prevVisibility =
                     map.getLayoutProperty(id, 'visibility') || 'visible';
@@ -443,11 +440,11 @@ const PhotoMapLive = () => {
                 const prevTextColor = map.getPaintProperty(id, 'text-color');
                 const prevTextHaloColor = map.getPaintProperty(
                   id,
-                  'text-halo-color'
+                  'text-halo-color',
                 );
                 const prevTextHaloWidth = map.getPaintProperty(
                   id,
-                  'text-halo-width'
+                  'text-halo-width',
                 );
                 styledSymbols[id] = {
                   textColor: prevTextColor,
@@ -506,14 +503,14 @@ const PhotoMapLive = () => {
               map.setPaintProperty(
                 layerId,
                 'text-halo-color',
-                prevPaint.textHaloColor
+                prevPaint.textHaloColor,
               );
             }
             if (prevPaint.textHaloWidth !== undefined) {
               map.setPaintProperty(
                 layerId,
                 'text-halo-width',
-                prevPaint.textHaloWidth
+                prevPaint.textHaloWidth,
               );
             }
             if (prevPaint.lineColor !== undefined) {
@@ -523,14 +520,14 @@ const PhotoMapLive = () => {
               map.setPaintProperty(
                 layerId,
                 'line-opacity',
-                prevPaint.lineOpacity
+                prevPaint.lineOpacity,
               );
             }
             if (prevPaint.visibility !== undefined) {
               map.setLayoutProperty(
                 layerId,
                 'visibility',
-                prevPaint.visibility
+                prevPaint.visibility,
               );
             }
           } catch {
@@ -546,13 +543,13 @@ const PhotoMapLive = () => {
           const style = map.getStyle();
           if (style && Array.isArray(style.layers)) {
             const backgroundLayer = style.layers.find(
-              l => l.type === 'background'
+              l => l.type === 'background',
             );
             if (backgroundLayer) {
               map.setPaintProperty(
                 backgroundLayer.id,
                 'background-color',
-                '#f8f9fa'
+                '#f8f9fa',
               );
             }
           }
@@ -586,19 +583,19 @@ const PhotoMapLive = () => {
         if (mapInstance.current.__setInteracted) {
           mapInstance.current.off(
             'dragstart',
-            mapInstance.current.__setInteracted
+            mapInstance.current.__setInteracted,
           );
           mapInstance.current.off(
             'zoomstart',
-            mapInstance.current.__setInteracted
+            mapInstance.current.__setInteracted,
           );
           mapInstance.current.off(
             'rotatestart',
-            mapInstance.current.__setInteracted
+            mapInstance.current.__setInteracted,
           );
           mapInstance.current.off(
             'pitchstart',
-            mapInstance.current.__setInteracted
+            mapInstance.current.__setInteracted,
           );
           delete mapInstance.current.__setInteracted;
         }
@@ -665,7 +662,7 @@ const PhotoMapLive = () => {
     if (!activeStack) return;
     const stackIds = new Set(activeStack.photos.map(photo => photo.id));
     const stillPresent = clusters.some(cluster =>
-      cluster.photos.some(photo => stackIds.has(photo.id))
+      cluster.photos.some(photo => stackIds.has(photo.id)),
     );
     if (!stillPresent) {
       setActiveStack(null);
@@ -725,45 +722,7 @@ const PhotoMapLive = () => {
       return `${base}(${count})`;
     };
 
-    const accessToken = localStorage.getItem('access_token') || '';
-    const tryServerZip = async () => {
-      const apiUrl = envApiBases?.[0]?.replace(/\/$/, '');
-      if (!apiUrl) return false;
-      try {
-        const payload = {
-          items: items
-            .map(item => {
-              const url = resolveUrl(item);
-              if (!url) return null;
-              return { url, name: dedupeName(resolveName(item)) };
-            })
-            .filter(Boolean),
-        };
-        if (!payload.items.length) return false;
-
-        const res = await fetch(`${apiUrl}/api/v1/photos/download-zip`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-          },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) return false;
-        const zipBlob = await res.blob();
-        downloadFile(zipBlob, `photos-${Date.now()}.zip`);
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
     try {
-      if (items.length > 1) {
-        const zipped = await tryServerZip();
-        if (zipped) return;
-      }
-
       if (items.length === 1) {
         const item = items[0];
         const url = resolveUrl(item);
