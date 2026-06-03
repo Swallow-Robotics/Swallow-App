@@ -31,8 +31,6 @@ const PhotosPage = () => {
     (typeof activeProject === 'string'
       ? activeProject
       : activeProject?.project_id) || null;
-  const projectName =
-    typeof activeProject === 'string' ? '' : activeProject?.project_name || '';
 
   const [photos, setPhotos] = useState([]);
   const [error, setError] = useState('');
@@ -129,16 +127,6 @@ const PhotosPage = () => {
         <div className="page-header__left" />
         <div className="page-header__center">
           <h2 className="page-header__title">Photos</h2>
-          {projectName ? (
-            <span
-              style={{
-                color: 'var(--color-text-secondary)',
-                fontSize: 'var(--font-size-sm)',
-              }}
-            >
-              {projectName}
-            </span>
-          ) : null}
         </div>
         <div className="page-header__right">
           {canUploadPhotos ? (

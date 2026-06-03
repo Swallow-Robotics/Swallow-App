@@ -7,6 +7,7 @@ import {
   Link,
   NavLink,
   useLocation,
+  useSearchParams,
 } from 'react-router-dom';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './App.css';
@@ -28,7 +29,7 @@ import {
   ProjectMembersPage,
   DashboardPage,
 } from './pages';
-import PhotoOptionsPage from './pages/PhotoOptionsPage';
+import PhotoViewerPage from './pages/PhotoViewerPage';
 import PublicProjectView from './pages/PublicProjectView';
 import ConfirmEmailPage from './pages/ConfirmEmailPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
@@ -97,6 +98,8 @@ const navLinkClass = ({ isActive }) =>
 const ViewNav = () => {
   const { user, activeProject } = useAuth();
   const hasActiveProject = !!(activeProject?.id || activeProject);
+  const projectName =
+    typeof activeProject === 'string' ? '' : activeProject?.project_name || '';
 
   if (!user) return null;
 
@@ -127,13 +130,23 @@ const ViewNav = () => {
             Plan
           </NavLink>
         )}
+        {projectName ? (
+          <div className="App-subnav__project" title={projectName}>
+            <span className="App-subnav__projectLabel">Project</span>
+            <span className="App-subnav__projectName">{projectName}</span>
+          </div>
+        ) : null}
       </div>
     </nav>
   );
 };
 
 const PlanNav = () => {
-  const { user } = useAuth();
+  const { user, projects } = useAuth();
+  const [searchParams] = useSearchParams();
+  const projectId = searchParams.get('project_id') || null;
+  const projectName =
+    (projects || []).find(p => p.project_id === projectId)?.project_name || '';
 
   if (!user) return null;
 
@@ -143,6 +156,12 @@ const PlanNav = () => {
         <NavLink to="/plan/projects" className={navLinkClass}>
           Projects
         </NavLink>
+        {projectName ? (
+          <div className="App-subnav__project" title={projectName}>
+            <span className="App-subnav__projectLabel">Project</span>
+            <span className="App-subnav__projectName">{projectName}</span>
+          </div>
+        ) : null}
       </div>
     </nav>
   );
@@ -231,11 +250,11 @@ export function AppRoutes() {
               }
             />
             <Route
-              path="photos/:id/options"
+              path="photos/:id"
               element={
-                <AuthLayout>
-                  <PhotoOptionsPage />
-                </AuthLayout>
+                <AuthGuard>
+                  <PhotoViewerPage />
+                </AuthGuard>
               }
             />
             <Route

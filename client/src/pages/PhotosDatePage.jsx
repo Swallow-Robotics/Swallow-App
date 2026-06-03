@@ -165,7 +165,7 @@ const PhotosDatePage = () => {
               if (selectionMode) {
                 toggleSelect(photo.photo_id);
               } else {
-                navigate(`/view/photos/${photo.photo_id}/options`);
+                navigate(`/view/photos/${photo.photo_id}`);
               }
             }}
           >

@@ -218,7 +218,7 @@ const PhotoMapLive = () => {
   const openPhotoOptions = useCallback(
     photo => {
       if (!photo?.id) return;
-      navigate(`/view/photos/${photo.id}/options`, { state: { from: 'map' } });
+      navigate(`/view/photos/${photo.id}`, { state: { from: 'map' } });
     },
     [navigate],
   );

@@ -11,5 +11,5 @@ export { default as ProfilePage } from './ProfilePage';
 export { default as ProjectsPage } from './ProjectsPage';
 export { default as ArchivedProjectsPage } from './ArchivedProjectsPage';
 export { default as ProjectMembersPage } from './ProjectMembersPage';
-export { default as PhotoOptionsPage } from './PhotoOptionsPage';
+export { default as PhotoViewerPage } from './PhotoViewerPage';
 export { default as DashboardPage } from './DashboardPage';

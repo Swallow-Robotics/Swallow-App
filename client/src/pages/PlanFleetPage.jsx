@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../context';
 import apiClient from '../services/api';
 import FleetAddModal from '../components/fleet/FleetAddModal';
 
@@ -18,11 +17,8 @@ const formatDate = dateStr => {
 const PlanFleetPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { projects } = useAuth();
 
   const activeProjectId = searchParams.get('project_id') || null;
-  const currentProject =
-    (projects || []).find(p => p.project_id === activeProjectId) || null;
 
   const [drones, setDrones] = useState([]);
   const [docks, setDocks] = useState([]);
@@ -243,17 +239,6 @@ const PlanFleetPage = () => {
           </div>
           <div className="page-header__center">
             <h2 className="page-header__title">Fleet</h2>
-            {currentProject ? (
-              <p
-                style={{
-                  margin: 0,
-                  color: 'var(--color-text-secondary)',
-                  fontSize: '0.9em',
-                }}
-              >
-                {currentProject.project_name}
-              </p>
-            ) : null}
           </div>
           <div className="page-header__right">
             {activeProjectId ? (

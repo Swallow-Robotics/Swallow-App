@@ -217,11 +217,6 @@ const DashboardPage = () => {
         <div className="page-header__left" />
         <div className="page-header__center">
           <h2 className="page-header__title">Dashboard</h2>
-          {project.project_name ? (
-            <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: '0.9em' }}>
-              {project.project_name}
-            </p>
-          ) : null}
         </div>
         <div className="page-header__right" />
       </div>

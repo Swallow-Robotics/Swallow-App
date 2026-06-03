@@ -143,6 +143,34 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.App-subnav__project {
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 360px;
+  overflow: hidden;
+}
+
+.App-subnav__projectLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-mid-sky-blue);
+  flex-shrink: 0;
+}
+
+.App-subnav__projectName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-deep-plumage-blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ===========================
    PROFILE MENU
    =========================== */

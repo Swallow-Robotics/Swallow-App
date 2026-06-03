@@ -88,7 +88,7 @@ function PlanMapMarkers({
   const openPhotoOptions = useCallback(
     photo => {
       if (photo?.id && navigate) {
-        navigate(`/view/photos/${photo.id}/options`, { state: { from: 'plan' } });
+        navigate(`/view/photos/${photo.id}`, { state: { from: 'plan' } });
       }
     },
     [navigate]
