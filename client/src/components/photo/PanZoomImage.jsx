@@ -19,7 +19,7 @@ const PanZoomImage = ({ src, alt }) => {
     setTransform({ scale: 1, x: 0, y: 0 });
   }, [src]);
 
-  const handleWheel = useCallback(e => {
+  const handleWheel = useCallback((e) => {
     e.preventDefault();
     const container = containerRef.current;
     if (!container) return;
@@ -27,7 +27,7 @@ const PanZoomImage = ({ src, alt }) => {
     const cursorX = e.clientX - rect.left - rect.width / 2;
     const cursorY = e.clientY - rect.top - rect.height / 2;
 
-    setTransform(prev => {
+    setTransform((prev) => {
       const nextScale = clamp(
         prev.scale * (1 - e.deltaY * ZOOM_STEP),
         MIN_SCALE,
@@ -52,7 +52,7 @@ const PanZoomImage = ({ src, alt }) => {
     return () => container.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
-  const handlePointerDown = e => {
+  const handlePointerDown = (e) => {
     if (transform.scale <= MIN_SCALE) return;
     dragRef.current = {
       startX: e.clientX,
@@ -63,16 +63,19 @@ const PanZoomImage = ({ src, alt }) => {
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
-  const handlePointerMove = e => {
-    if (!dragRef.current) return;
-    setTransform(prev => ({
+  const handlePointerMove = (e) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    setTransform((prev) => ({
       ...prev,
-      x: dragRef.current.originX + (e.clientX - dragRef.current.startX),
-      y: dragRef.current.originY + (e.clientY - dragRef.current.startY),
+      x: drag.originX + dx,
+      y: drag.originY + dy,
     }));
   };
 
-  const handlePointerUp = e => {
+  const handlePointerUp = (e) => {
     dragRef.current = null;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };

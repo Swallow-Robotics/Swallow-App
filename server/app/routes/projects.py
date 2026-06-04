@@ -486,7 +486,19 @@ def update_project_location(project_id):
     if not updated:
         return jsonify({"error": "Project not found"}), 404
 
-    location = supabase_client.get_project_location(project_id)
+    # The authoritative project marker now lives on projects.address_lat/_lng.
+    # Fall back to that if the legacy locations lookup is unavailable, so an
+    # address edit never fails after the project row was successfully updated.
+    location = None
+    try:
+        location = supabase_client.get_project_location(project_id)
+    except Exception as exc:
+        logging.warning("get_project_location failed for %s: %s", project_id, exc)
+    if not location and updated.get("address_lat") is not None and updated.get("address_lng") is not None:
+        location = {
+            "latitude": updated.get("address_lat"),
+            "longitude": updated.get("address_lng"),
+        }
     return jsonify({"project": updated, "location": location})
 
 

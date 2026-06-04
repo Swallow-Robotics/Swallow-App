@@ -10,13 +10,12 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from './context';
 import EditLocationModal from './components/map/EditLocationModal';
-import { useProjectMapData } from './hooks/useProjectMapData';
-import { formatLocalDateTimeParts } from './utils/mapDataUtils';
+import WaypointPhotosModal from './components/map/WaypointPhotosModal';
+import { useActivePlanWaypoints } from './hooks/useActivePlanWaypoints';
 import {
-  addMarkersToMap,
-  clearMarkers,
-  renderStackPopup,
-} from './utils/mapMarkerRendering';
+  addWaypointMarkersToMap,
+  clearWaypointMarkers,
+} from './utils/waypointMapRendering';
 
 const STANDARD_STYLE_URL =
   'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
@@ -129,55 +128,80 @@ class BasemapToggleControl {
 
 const PhotoMapLive = () => {
   const navigate = useNavigate();
-  const { activeProject, projects, setActiveProject, roleForActiveProject } =
-    useAuth();
-  const activeProjectId = activeProject?.id || activeProject || null;
+  const { activeProject, projects, roleForActiveProject } = useAuth();
+  const activeProjectId = activeProject?.project_id || activeProject || null;
   const role = roleForActiveProject ? roleForActiveProject() : null;
   const canManage =
     (role || '').toLowerCase() === 'owner' ||
     (role || '').toLowerCase() === 'administrator';
+
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const [isMapReady, setIsMapReady] = useState(false);
-  const [activeStack, setActiveStack] = useState(null);
   const [projectMarkerOverride, setProjectMarkerOverride] = useState(null);
   const [editLocationOpen, setEditLocationOpen] = useState(false);
   const [isDragMode, setIsDragMode] = useState(false);
+  const [selectedWaypoint, setSelectedWaypoint] = useState(null);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
   const markersRef = useRef([]);
-  const photoPopupRef = useRef(null);
   const projectLocationPopupRef = useRef(null);
   const hasAutoFitRef = useRef(false);
   const userInteractedRef = useRef(false);
-  const [refreshCounter, setRefreshCounter] = useState(0);
 
-  const { projectMarker, clusters } = useProjectMapData(
-    activeProjectId,
-    refreshCounter,
-    {
-      projectMarkerOverride,
-    },
-  );
   const activeStyleRef = useRef('standard');
   const satelliteHiddenLayersRef = useRef({});
   const satelliteStyledSymbolsRef = useRef({});
-  const [projectToggleWidth, setProjectToggleWidth] = useState(180);
-  const projectSelectRef = useRef(null);
-  const closeStack = useCallback(() => setActiveStack(null), []);
-  const closePhotoPopup = useCallback(() => {
-    if (photoPopupRef.current) {
-      photoPopupRef.current.remove();
-      photoPopupRef.current = null;
-    }
-  }, []);
 
-  const handleLocationModeChange = useCallback(newMode => {
+  const { waypoints } = useActivePlanWaypoints(activeProjectId, refreshCounter);
+
+  const activeProjectRow = useMemo(
+    () => projects.find((p) => p.project_id === activeProjectId) || null,
+    [projects, activeProjectId],
+  );
+
+  const selectedProjectName = activeProjectRow?.project_name || '';
+
+  const addressCoord = useMemo(() => {
+    if (!activeProjectRow) return null;
+    const lat = Number(activeProjectRow.address_lat);
+    const lon = Number(activeProjectRow.address_lng);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+    return null;
+  }, [activeProjectRow]);
+
+  // Project marker comes from projects.address_lat/address_lng. The override is
+  // applied immediately after an in-map edit so the pin updates without refetch.
+  const projectMarker = useMemo(() => {
+    if (projectMarkerOverride) return projectMarkerOverride;
+    if (addressCoord) {
+      return { latitude: addressCoord.lat, longitude: addressCoord.lon };
+    }
+    return null;
+  }, [projectMarkerOverride, addressCoord]);
+
+  const markerRefs = useMemo(
+    () => ({ markersRef, projectLocationPopupRef }),
+    [],
+  );
+
+  const handleLocationModeChange = useCallback((newMode) => {
     setIsDragMode(newMode === 'drag');
   }, []);
 
-  const handleLocationSave = useCallback(data => {
-    const newLocation = data.location || null;
+  const handleLocationSave = useCallback((data) => {
+    const proj = data.project || {};
+    let newLocation = null;
+    if (proj.address_lat != null && proj.address_lng != null) {
+      newLocation = {
+        latitude: Number(proj.address_lat),
+        longitude: Number(proj.address_lng),
+      };
+    } else if (data.location) {
+      newLocation = data.location;
+    }
     setProjectMarkerOverride(newLocation);
-    setRefreshCounter(c => c + 1);
+    setRefreshCounter((c) => c + 1);
     hasAutoFitRef.current = false;
     userInteractedRef.current = false;
     setIsDragMode(false);
@@ -186,71 +210,24 @@ const PhotoMapLive = () => {
       const newLat = Number(newLocation.latitude);
       const newLng = Number(newLocation.longitude);
       if (Number.isFinite(newLat) && Number.isFinite(newLng)) {
-        mapInstance.current.flyTo({
+        mapInstance.current.jumpTo({
           center: [newLng, newLat],
-          zoom: Math.max(mapInstance.current.getZoom?.() ?? 10, 13),
-          essential: true,
+          zoom: Math.max(mapInstance.current.getZoom?.() ?? 10, 15),
         });
       }
     }
   }, []);
 
-  const selectedProjectName = useMemo(() => {
-    const current =
-      projects.find(p => p.id === activeProjectId)?.name ||
-      projects[0]?.name ||
-      '';
-    return current || '';
-  }, [projects, activeProjectId]);
-
-  const selectedProjectCoord = useMemo(() => {
-    const current = projects.find(p => p.project_id === activeProjectId);
-    if (!current || current.address_lat == null || current.address_lng == null)
-      return null;
-    const lat = Number(current.address_lat);
-    const lon = Number(current.address_lng);
-    if (Number.isFinite(lat) && Number.isFinite(lon)) {
-      return { lat, lon };
-    }
-    return null;
-  }, [projects, activeProjectId]);
-
-  const openPhotoOptions = useCallback(
-    photo => {
-      if (!photo?.id) return;
-      navigate(`/view/photos/${photo.id}`, { state: { from: 'map' } });
+  const openPhotoViewer = useCallback(
+    (photo) => {
+      if (!photo?.photo_id) return;
+      navigate(`/view/photos/${photo.photo_id}`, { state: { from: 'map' } });
     },
     [navigate],
   );
 
   useEffect(() => {
-    // Dynamically size the project toggle to fit the selected text.
-    const selectEl = projectSelectRef.current;
-    if (!selectEl) return;
-    // Reset to auto to measure intrinsic width.
-    selectEl.style.width = 'auto';
-    const scrollWidth = selectEl.scrollWidth;
-    const buffer = 18; // for arrow and breathing room
-    const computed = scrollWidth + buffer;
-    const clamped = Math.min(Math.max(computed, 140), window.innerWidth * 0.9);
-    setProjectToggleWidth(clamped);
-  }, [selectedProjectName, projects.length]);
-
-  const markerRefs = useMemo(
-    () => ({
-      markersRef,
-      photoPopupRef,
-      projectLocationPopupRef,
-    }),
-    [],
-  );
-
-  const clearMarkersCallback = useCallback(() => {
-    clearMarkers(markerRefs);
-  }, [markerRefs]);
-
-  useEffect(() => {
-    if (!mapRef.current || mapInstance.current) return;
+    if (!mapRef.current || mapInstance.current) return undefined;
 
     try {
       mapInstance.current = new maplibregl.Map({
@@ -259,24 +236,20 @@ const PhotoMapLive = () => {
         center: [-98.5, 39.8], // USA center
         zoom: 3.5,
         transformRequest: (url, resourceType) => {
-          // Ensure proper CORS headers for style and tile requests
           if (
             resourceType === 'Style' ||
             resourceType === 'Source' ||
             resourceType === 'Tile'
           ) {
-            return {
-              url: url,
-              headers: {},
-              credentials: 'omit',
-            };
+            return { url, headers: {}, credentials: 'omit' };
           }
+          return undefined;
         },
       });
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error initializing map:', error);
-      return;
+      return undefined;
     }
 
     if (typeof mapInstance.current?.addControl === 'function') {
@@ -290,7 +263,7 @@ const PhotoMapLive = () => {
       setIsMapReady(true);
     };
 
-    const handleError = e => {
+    const handleError = (e) => {
       // eslint-disable-next-line no-console
       console.error('Map error:', e);
     };
@@ -309,7 +282,7 @@ const PhotoMapLive = () => {
       mapInstance.current.__setInteracted = setInteracted;
     }
 
-    const applyStyle = styleKey => {
+    const applyStyle = (styleKey) => {
       const map = mapInstance.current;
       if (!map) return;
       const center = map.getCenter();
@@ -317,12 +290,13 @@ const PhotoMapLive = () => {
       const bearing = map.getBearing();
       const pitch = map.getPitch();
       activeStyleRef.current = styleKey;
+
       const ensureSatelliteHybrid = () => {
         try {
           const style = map.getStyle();
           if (style && Array.isArray(style.layers)) {
             const backgroundLayer = style.layers.find(
-              l => l.type === 'background',
+              (l) => l.type === 'background',
             );
             if (backgroundLayer) {
               map.setPaintProperty(
@@ -359,11 +333,10 @@ const PhotoMapLive = () => {
             }
           }
 
-          // Hide landuse/building fills and keep roads/labels/boundaries
           const layers = map.getStyle()?.layers || [];
           const hidden = {};
           const styledSymbols = {};
-          layers.forEach(layer => {
+          layers.forEach((layer) => {
             const { id, type } = layer;
             if (!id || !type) return;
 
@@ -461,7 +434,7 @@ const PhotoMapLive = () => {
           });
           satelliteHiddenLayersRef.current = hidden;
           satelliteStyledSymbolsRef.current = styledSymbols;
-        } catch (err) {
+        } catch {
           // Non-fatal: skip hybrid overlay if anything fails
         }
       };
@@ -474,11 +447,10 @@ const PhotoMapLive = () => {
           if (map.getSource('satellite-raster')) {
             map.removeSource('satellite-raster');
           }
-        } catch (err) {
+        } catch {
           // ignore
         }
 
-        // Restore visibilities
         const hidden = satelliteHiddenLayersRef.current || {};
         Object.entries(hidden).forEach(([layerId, prevVisibility]) => {
           try {
@@ -492,7 +464,6 @@ const PhotoMapLive = () => {
         });
         satelliteHiddenLayersRef.current = {};
 
-        // Restore symbol paint
         const styled = satelliteStyledSymbolsRef.current || {};
         Object.entries(styled).forEach(([layerId, prevPaint]) => {
           try {
@@ -543,7 +514,7 @@ const PhotoMapLive = () => {
           const style = map.getStyle();
           if (style && Array.isArray(style.layers)) {
             const backgroundLayer = style.layers.find(
-              l => l.type === 'background',
+              (l) => l.type === 'background',
             );
             if (backgroundLayer) {
               map.setPaintProperty(
@@ -553,7 +524,7 @@ const PhotoMapLive = () => {
               );
             }
           }
-        } catch (err) {
+        } catch {
           // ignore background restore failures
         }
       };
@@ -600,26 +571,22 @@ const PhotoMapLive = () => {
           delete mapInstance.current.__setInteracted;
         }
       }
-      clearMarkersCallback();
+      clearWaypointMarkers(markerRefs);
       if (typeof mapInstance.current?.remove === 'function') {
         mapInstance.current.remove();
       }
       mapInstance.current = null;
     };
-  }, [clearMarkersCallback, closeStack, closePhotoPopup]);
+  }, [markerRefs]);
 
   useEffect(() => {
-    // Close popups/stacks only when clicking the map background.
-    // We intentionally do NOT use MapLibre's map 'click' event here because it can fire for
-    // marker DOM clicks in some browsers, causing "open then instantly close" behavior.
+    // Close the project-location popup when clicking the map background.
     const mapContainer = mapRef.current;
-    if (!mapContainer) return;
+    if (!mapContainer) return undefined;
 
-    const handleDocumentClickCapture = evt => {
+    const handleDocumentClickCapture = (evt) => {
       const target = evt?.target;
       if (!target || typeof target.closest !== 'function') return;
-
-      // Ignore clicks on markers, popups, or MapLibre controls.
       if (
         target.closest('.maplibregl-marker') ||
         target.closest('.maplibregl-popup') ||
@@ -627,10 +594,7 @@ const PhotoMapLive = () => {
       ) {
         return;
       }
-
-      // Only react to clicks that occur within the map container.
-      if (!target.closest(`[data-photo-map-live="1"]`)) return;
-
+      if (!target.closest('[data-photo-map-live="1"]')) return;
       if (projectLocationPopupRef.current) {
         try {
           projectLocationPopupRef.current.remove();
@@ -639,276 +603,74 @@ const PhotoMapLive = () => {
         }
         projectLocationPopupRef.current = null;
       }
-      closeStack();
-      closePhotoPopup();
     };
 
     document.addEventListener('click', handleDocumentClickCapture, true);
     return () => {
       document.removeEventListener('click', handleDocumentClickCapture, true);
     };
-  }, [closePhotoPopup, closeStack]);
+  }, []);
 
   useEffect(() => {
     setProjectMarkerOverride(null);
-  }, [activeProjectId]);
-
-  useEffect(() => {
     hasAutoFitRef.current = false;
     userInteractedRef.current = false;
   }, [activeProjectId]);
 
   useEffect(() => {
-    if (!activeStack) return;
-    const stackIds = new Set(activeStack.photos.map(photo => photo.id));
-    const stillPresent = clusters.some(cluster =>
-      cluster.photos.some(photo => stackIds.has(photo.id)),
+    if (!mapInstance.current || !isMapReady) return undefined;
+    const map = mapInstance.current;
+
+    const { bounds, hasProjectPin, pmLat, pmLng } = addWaypointMarkersToMap(
+      map,
+      markerRefs,
+      {
+        waypoints,
+        projectMarker,
+        canManage,
+        selectedProjectName,
+        onWaypointClick: setSelectedWaypoint,
+        onEditProjectLocation: () => setEditLocationOpen(true),
+        isDragMode,
+      },
     );
-    if (!stillPresent) {
-      setActiveStack(null);
-    }
-  }, [activeStack, clusters]);
 
-  const downloadPhotos = useCallback(async items => {
-    if (!items?.length) return;
-
-    const fetchBlob = async url => {
-      const res = await fetch(url, { mode: 'cors' }).catch(() => null);
-      if (!res || !res.ok) {
-        throw new Error('Download failed');
-      }
-      return res.blob();
-    };
-
-    const downloadFile = (blob, filename) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    };
-
-    const downloadDirect = (url, filename) => {
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    };
-
-    const resolveName = item =>
-      item.file_name || item.caption || `photo-${item.id || Date.now()}`;
-
-    const resolveUrl = item =>
-      item.primaryUrl || item.url || item.fallbackUrl || item.thumbnailUrl;
-
-    const nameCount = new Map();
-    const dedupeName = base => {
-      const count = nameCount.get(base) || 0;
-      nameCount.set(base, count + 1);
-      if (count === 0) return base;
-      const parts = base.split('.');
-      if (parts.length > 1) {
-        const ext = parts.pop();
-        const stem = parts.join('.');
-        return `${stem}(${count}).${ext}`;
-      }
-      return `${base}(${count})`;
-    };
-
-    try {
-      if (items.length === 1) {
-        const item = items[0];
-        const url = resolveUrl(item);
-        if (!url) throw new Error('No URL to download');
-        downloadDirect(url, resolveName(item));
-        return;
-      }
-
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
-      let added = 0;
-      const failed = [];
-
-      for (const item of items) {
-        const url = resolveUrl(item);
-        if (!url) continue;
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          const blob = await fetchBlob(url);
-          const name = dedupeName(resolveName(item));
-          zip.file(name, blob);
-          added += 1;
-        } catch (error) {
-          failed.push(item);
-        }
-      }
-
-      if (added > 0) {
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
-        downloadFile(zipBlob, `photos-${Date.now()}.zip`);
-      } else if (failed.length) {
-        failed.forEach(item => {
-          const url = resolveUrl(item);
-          if (url) downloadDirect(url, resolveName(item));
-        });
-      }
-    } catch {
-      // Soft-fail; in future surface toast.
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!mapInstance.current || !isMapReady) return;
-
-    const result = addMarkersToMap(mapInstance.current, markerRefs, {
-      clusters,
-      projectMarker,
-      canManage,
-      selectedProjectName,
-      openPhotoOptions,
-      closePhotoPopup,
-      closeStack,
-      setActiveStack,
-      onEditProjectLocation: () => setEditLocationOpen(true),
-      formatDateTimeParts: formatLocalDateTimeParts,
-      isDragMode,
-    });
-
-    const { bounds, hasProjectPin, pmLat, pmLng } = result;
-
-    // Auto-fit priority (Map page only)
     if (!hasAutoFitRef.current && !userInteractedRef.current && !isDragMode) {
-      if (hasProjectPin && clusters.length === 0) {
-        mapInstance.current.flyTo({
-          center: [pmLng, pmLat],
-          zoom: 13,
-          essential: true,
-        });
+      const hasWaypoints = bounds && !bounds.isEmpty();
+      let projLngLat = null;
+      if (hasProjectPin) projLngLat = [pmLng, pmLat];
+      else if (addressCoord) projLngLat = [addressCoord.lon, addressCoord.lat];
+
+      if (projLngLat && hasWaypoints) {
+        bounds.extend(projLngLat);
+        map.fitBounds(bounds, { padding: 80, maxZoom: 17, animate: false });
         hasAutoFitRef.current = true;
-      } else if (hasProjectPin && clusters.length > 0 && bounds) {
-        bounds.extend([pmLng, pmLat]);
-        mapInstance.current.fitBounds(bounds, {
-          padding: 60,
-          maxZoom: 19,
-          duration: 800,
-        });
+      } else if (projLngLat) {
+        map.jumpTo({ center: projLngLat, zoom: 15 });
         hasAutoFitRef.current = true;
-      } else if (bounds && !bounds.isEmpty()) {
-        mapInstance.current.fitBounds(bounds, {
-          padding: 60,
-          maxZoom: 19,
-          duration: 800,
-        });
-        hasAutoFitRef.current = true;
-      } else if (selectedProjectCoord) {
-        mapInstance.current.flyTo({
-          center: [selectedProjectCoord.lon, selectedProjectCoord.lat],
-          zoom: 13,
-          essential: true,
-        });
+      } else if (hasWaypoints) {
+        map.fitBounds(bounds, { padding: 80, maxZoom: 17, animate: false });
         hasAutoFitRef.current = true;
       }
     }
 
-    return () => clearMarkers(markerRefs);
-    // selectedProjectCoord/selectedProjectName omitted to avoid re-running when only
-    // reference identity changes (e.g. context re-render), which would clear open popups.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => clearWaypointMarkers(markerRefs);
   }, [
-    clusters,
-    closePhotoPopup,
-    closeStack,
+    waypoints,
+    projectMarker,
+    canManage,
+    selectedProjectName,
+    addressCoord,
     isDragMode,
     isMapReady,
-    canManage,
-    projectMarker,
+    markerRefs,
   ]);
-
-  useEffect(() => {
-    if (!activeStack || !mapInstance.current) return undefined;
-    return renderStackPopup(mapInstance.current, activeStack, {
-      closeStack,
-      formatDateTimeParts: formatLocalDateTimeParts,
-      openPhotoOptions,
-      downloadPhotos,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStack, closeStack, downloadPhotos]);
-
-  // eslint-disable-next-line no-unused-vars
-  const handlePhotoSelect = photo => {
-    if (!photo) return;
-
-    if (mapInstance.current) {
-      const canFly =
-        typeof mapInstance.current.flyTo === 'function' &&
-        Number.isFinite(photo.mapLongitude) &&
-        Number.isFinite(photo.mapLatitude);
-      if (canFly) {
-        const currentZoom = mapInstance.current.getZoom?.();
-        const zoom = Number.isFinite(currentZoom)
-          ? Math.max(currentZoom, 11)
-          : 11;
-        mapInstance.current.flyTo({
-          center: [photo.mapLongitude, photo.mapLatitude],
-          zoom,
-          essential: true,
-        });
-      }
-    }
-
-    if (photo.url && typeof window !== 'undefined') {
-      window.open(photo.url, '_blank', 'noopener,noreferrer');
-    }
-  };
 
   return (
     <div
       data-photo-map-live="1"
       style={{ width: '100%', height: '100%', position: 'relative' }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          zIndex: 3,
-          top: 8,
-          left: 8,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <select
-          className="btn-format-1"
-          ref={projectSelectRef}
-          value={activeProjectId || projects[0]?.id || ''}
-          onChange={e => {
-            const nextId = e.target.value;
-            setActiveProject(nextId || null);
-            hasAutoFitRef.current = false;
-            userInteractedRef.current = false;
-            setRefreshCounter(c => c + 1);
-          }}
-          style={{
-            paddingRight: 28,
-            width: `${projectToggleWidth}px`,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {projects.map(p => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       <EditLocationModal
         open={editLocationOpen}
@@ -921,6 +683,12 @@ const PhotoMapLive = () => {
         projectMarker={projectMarker}
         mapInstance={mapInstance}
         onModeChange={handleLocationModeChange}
+      />
+      <WaypointPhotosModal
+        open={!!selectedWaypoint}
+        waypoint={selectedWaypoint}
+        onClose={() => setSelectedWaypoint(null)}
+        onPhotoClick={openPhotoViewer}
       />
     </div>
   );

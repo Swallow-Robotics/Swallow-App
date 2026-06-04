@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context';
 import apiClient from '../services/api';
-import { dateKeyFromIso, dateLabelFromKey } from '../utils/dateTime';
+import { dateKeyFromIso } from '../utils/dateTime';
 import EditPhotoModal from '../components/photo/EditPhotoModal';
+import DateDropdown from '../components/photo/DateDropdown';
 import { downloadPhotosZip, photoFileName } from '../services/photoDownload';
 
 const PhotosDatePage = () => {
@@ -57,7 +58,7 @@ const PhotosDatePage = () => {
   }, [fetchPhotos]);
 
   useEffect(() => {
-    const handleClickOutside = e => {
+    const handleClickOutside = (e) => {
       if (!openMenuId) return;
       if (!e.target.closest?.('.photo-menu')) {
         setOpenMenuId(null);
@@ -70,11 +71,20 @@ const PhotosDatePage = () => {
 
   const datePhotos = useMemo(
     () =>
-      (photos || []).filter(photo => dateKeyFromIso(photo.taken_at) === date),
+      (photos || []).filter((photo) => dateKeyFromIso(photo.taken_at) === date),
     [photos, date],
   );
 
-  const deletePhoto = async photoId => {
+  const availableDates = useMemo(() => {
+    const keys = new Set();
+    (photos || []).forEach((photo) => {
+      const key = dateKeyFromIso(photo.taken_at);
+      if (key) keys.add(key);
+    });
+    return Array.from(keys).sort((a, b) => (a < b ? 1 : -1));
+  }, [photos]);
+
+  const deletePhoto = async (photoId) => {
     try {
       await apiClient.delete(`/v1/photos/manage/${photoId}`);
       fetchPhotos();
@@ -85,8 +95,8 @@ const PhotosDatePage = () => {
     }
   };
 
-  const toggleSelect = photoId => {
-    setSelectedIds(prev => {
+  const toggleSelect = (photoId) => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(photoId)) next.delete(photoId);
       else next.add(photoId);
@@ -94,12 +104,12 @@ const PhotosDatePage = () => {
     });
   };
 
-  const buildItems = list =>
+  const buildItems = (list) =>
     list
-      .filter(photo => photo.r2_url)
-      .map(photo => ({ url: photo.r2_url, name: photoFileName(photo) }));
+      .filter((photo) => photo.r2_url)
+      .map((photo) => ({ url: photo.r2_url, name: photoFileName(photo) }));
 
-  const runDownload = async list => {
+  const runDownload = async (list) => {
     setError('');
     const items = buildItems(list);
     if (!items.length) {
@@ -117,7 +127,7 @@ const PhotosDatePage = () => {
   };
 
   const handleDownloadSelected = async () => {
-    const selected = datePhotos.filter(photo =>
+    const selected = datePhotos.filter((photo) =>
       selectedIds.has(photo.photo_id),
     );
     await runDownload(selected);
@@ -137,16 +147,14 @@ const PhotosDatePage = () => {
         </div>
         <div className="page-header__center">
           <h2 className="page-header__title">Photos</h2>
-          <span
-            style={{
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--font-size-sm)',
-            }}
-          >
-            {dateLabelFromKey(date)}
-          </span>
         </div>
-        <div className="page-header__right" />
+        <div className="page-header__right">
+          <DateDropdown
+            dates={availableDates}
+            currentKey={date}
+            onSelect={(key) => navigate(`/view/photos/date/${key}`)}
+          />
+        </div>
       </div>
 
       {error ? <div className="page-error">{error}</div> : null}
@@ -157,7 +165,7 @@ const PhotosDatePage = () => {
       ) : null}
 
       <div className="photo-grid">
-        {datePhotos.map(photo => (
+        {datePhotos.map((photo) => (
           <div
             key={photo.photo_id}
             className="photo-grid-card"
@@ -174,7 +182,7 @@ const PhotosDatePage = () => {
                 type="checkbox"
                 checked={selectedIds.has(photo.photo_id)}
                 onChange={() => toggleSelect(photo.photo_id)}
-                onClick={e => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                   position: 'absolute',
                   top: 'var(--space-sm)',
@@ -198,9 +206,9 @@ const PhotosDatePage = () => {
               <button
                 type="button"
                 aria-label="Photo actions"
-                onClick={e => {
+                onClick={(e) => {
                   e.stopPropagation();
-                  setOpenMenuId(prev =>
+                  setOpenMenuId((prev) =>
                     prev === photo.photo_id ? null : photo.photo_id,
                   );
                 }}
@@ -222,7 +230,7 @@ const PhotosDatePage = () => {
                     minWidth: 160,
                     padding: 'var(--space-xs) 0',
                   }}
-                  onClick={e => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <button
                     type="button"
@@ -270,7 +278,7 @@ const PhotosDatePage = () => {
                   objectFit: 'cover',
                   display: 'block',
                 }}
-                onError={e => {
+                onError={(e) => {
                   if (photo.r2_url && e.target.src !== photo.r2_url) {
                     e.target.src = photo.r2_url;
                   } else {
@@ -280,18 +288,31 @@ const PhotosDatePage = () => {
               />
             </div>
             <div
+              className="App-subnav__project"
               style={{
                 display: 'flex',
                 justifyContent: 'center',
-                alignItems: 'center',
+                width: '100%',
+                marginLeft: 0,
+                maxWidth: 'none',
                 padding: 'var(--space-sm)',
                 borderTop: '1px solid var(--color-border)',
                 background: 'var(--color-surface-primary)',
-                color: 'var(--color-text-secondary)',
-                fontSize: 'var(--font-size-sm)',
+                boxSizing: 'border-box',
               }}
             >
-              {photo.waypoint_name || 'No waypoint'}
+              {photo.waypoint_name ? (
+                <>
+                  <span className="App-subnav__projectLabel">Waypoint</span>
+                  <span className="App-subnav__projectName">
+                    {photo.waypoint_name}
+                  </span>
+                </>
+              ) : (
+                <span style={{ color: 'var(--color-text-secondary)' }}>
+                  No waypoint
+                </span>
+              )}
             </div>
           </div>
         ))}
