@@ -137,23 +137,18 @@ const DrawingsPage = () => {
       setActiveDrawingDetail(null);
       return;
     }
-    let lastErr;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const resp = await apiClient.get(`/v1/drawings/${drawingId}`);
         setActiveDrawingDetail(resp?.drawing || null);
         return;
-      } catch (err) {
-        lastErr = err;
+      } catch {
         if (attempt < 2) {
           await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
         }
       }
     }
     setActiveDrawingDetail(null);
-    if (lastErr) {
-      console.error('Failed to load drawing detail:', lastErr);
-    }
   }, []);
 
   useEffect(() => {
