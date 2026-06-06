@@ -20,7 +20,7 @@ import {
   RegisterPage,
   MapPage,
   FlyMapPage,
-  PlanPage,
+  DrawingsPage,
   PhotosPage,
   PhotosDatePage,
   ProfilePage,
@@ -123,11 +123,8 @@ const ViewNav = () => {
           Map
         </NavLink>
         {hasActiveProject && (
-          <NavLink
-            to={`/view/projects/${activeProject?.id || activeProject}/plan`}
-            className={navLinkClass}
-          >
-            Plan
+          <NavLink to="/view/drawings" className={navLinkClass}>
+            Drawings
           </NavLink>
         )}
         {projectName ? (
@@ -282,10 +279,10 @@ export function AppRoutes() {
               }
             />
             <Route
-              path="projects/:id/plan"
+              path="drawings"
               element={
                 <AuthGuard>
-                  <PlanPage />
+                  <DrawingsPage />
                 </AuthGuard>
               }
             />

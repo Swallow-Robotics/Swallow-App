@@ -29,30 +29,54 @@ const WaypointDropdown = ({ waypoints, currentWaypointId, onSelect }) => {
           border: '1px solid var(--color-border)',
           background: 'var(--color-surface-primary)',
           color: 'var(--color-text-primary)',
-          fontSize: 'var(--font-size-sm)',
-          fontWeight: 'var(--font-weight-semibold)',
+          fontFamily: 'var(--font-family-sans)',
           padding: 'var(--space-xs) var(--space-sm)',
           height: 34,
-          minWidth: 140,
+          minWidth: 200,
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--shadow-md)',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 'var(--space-xs)',
+          gap: 'var(--space-sm)',
         }}
       >
         <span
           style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-xs)',
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            minWidth: 0,
+            flex: 1,
           }}
         >
-          {current ? current.waypoint_name || 'Unnamed waypoint' : '—'}
+          {current ? (
+            <>
+              <span className="App-subnav__projectLabel">Waypoint</span>
+              <span
+                className="App-subnav__projectName"
+                style={{ minWidth: 0 }}
+              >
+                {current.waypoint_name || 'Unnamed waypoint'}
+              </span>
+            </>
+          ) : (
+            <span style={{ fontSize: 'var(--font-size-sm)' }}>—</span>
+          )}
         </span>
-        <span style={{ fontSize: 10 }}>▾</span>
+        <span
+          aria-hidden="true"
+          style={{
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-text-secondary)',
+            lineHeight: 1,
+            flexShrink: 0,
+          }}
+        >
+          ▾
+        </span>
       </button>
 
       {open ? (

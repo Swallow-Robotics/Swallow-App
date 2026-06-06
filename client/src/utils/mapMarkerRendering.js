@@ -1,6 +1,6 @@
 /**
  * Shared marker and popup rendering for Map and Plan pages.
- * Used by PhotoMapLive and PlanMapMarkers for identical marker/popup behavior.
+ * Used by FlyMapPage for photo/cluster marker rendering.
  */
 
 import maplibregl from 'maplibre-gl';

@@ -3,7 +3,7 @@
  *
  * Renders a universal photo marker for every waypoint of the active plan plus
  * the draggable/editable project-location pin. Kept separate from
- * mapMarkerRendering.js (used by the Plan page) so each page can evolve
+ * mapMarkerRendering.js (used by the Fly map) so each page can evolve
  * independently.
  */
 

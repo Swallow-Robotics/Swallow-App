@@ -1,0 +1,191 @@
+import React, { useEffect, useRef, useState } from 'react';
+
+const segmentBase = {
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface-primary)',
+  color: 'var(--color-text-primary)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-semibold)',
+  padding: 'var(--space-xs) var(--space-sm)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: 34,
+};
+
+/**
+ * Drawing switcher: |<<< |< | name ▾ | > | >>>|
+ * `orderedDrawings` sorted by order ascending.
+ */
+const DrawingSwitcher = ({ orderedDrawings, currentId, onSelect }) => {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = e => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const index = orderedDrawings.findIndex(d => d.drawing_id === currentId);
+  const current = orderedDrawings[index];
+  const isFirst = index <= 0;
+  const isLast = index < 0 || index >= orderedDrawings.length - 1;
+
+  const goTo = drawing => {
+    if (drawing && drawing.drawing_id !== currentId) {
+      onSelect(drawing.drawing_id);
+    }
+    setOpen(false);
+  };
+
+  const renderButton = (label, ariaLabel, disabled, onClick, extraStyle) => (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        ...segmentBase,
+        ...extraStyle,
+        opacity: disabled ? 0.4 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  if (!orderedDrawings.length) return null;
+
+  return (
+    <div
+      ref={menuRef}
+      style={{
+        display: 'inline-flex',
+        position: 'relative',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-md)',
+        overflow: 'visible',
+      }}
+    >
+      <div style={{ display: 'inline-flex', borderRadius: 'var(--radius-lg)' }}>
+        {renderButton(
+          '«',
+          'First drawing',
+          isFirst,
+          () => goTo(orderedDrawings[0]),
+          {
+            borderTopLeftRadius: 'var(--radius-lg)',
+            borderBottomLeftRadius: 'var(--radius-lg)',
+            borderRight: 'none',
+          },
+        )}
+        {renderButton(
+          '‹',
+          'Previous drawing',
+          isFirst,
+          () => goTo(orderedDrawings[index - 1]),
+          { borderRight: 'none' },
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          style={{
+            ...segmentBase,
+            minWidth: 140,
+            maxWidth: 220,
+            gap: 'var(--space-xs)',
+          }}
+        >
+          <span
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {current?.drawing_name || '—'}
+          </span>
+          <span style={{ fontSize: 10, flexShrink: 0 }}>▾</span>
+        </button>
+        {renderButton(
+          '›',
+          'Next drawing',
+          isLast,
+          () => goTo(orderedDrawings[index + 1]),
+          { borderLeft: 'none' },
+        )}
+        {renderButton(
+          '»',
+          'Last drawing',
+          isLast,
+          () => goTo(orderedDrawings[orderedDrawings.length - 1]),
+          {
+            borderTopRightRadius: 'var(--radius-lg)',
+            borderBottomRightRadius: 'var(--radius-lg)',
+            borderLeft: 'none',
+          },
+        )}
+      </div>
+
+      {open ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + var(--space-xs))',
+            left: 0,
+            minWidth: '100%',
+            maxHeight: 280,
+            overflowY: 'auto',
+            background: 'var(--color-surface-primary)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-lg)',
+            zIndex: 20,
+            padding: 'var(--space-xs) 0',
+          }}
+        >
+          {orderedDrawings.map(drawing => {
+            const isCurrent = drawing.drawing_id === currentId;
+            return (
+              <button
+                key={drawing.drawing_id}
+                type="button"
+                onClick={() => goTo(drawing)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  border: 'none',
+                  background: isCurrent
+                    ? 'var(--color-surface-active)'
+                    : 'transparent',
+                  color: isCurrent
+                    ? 'var(--color-primary-dark)'
+                    : 'var(--color-text-primary)',
+                  fontWeight: isCurrent
+                    ? 'var(--font-weight-bold)'
+                    : 'var(--font-weight-regular)',
+                  fontSize: 'var(--font-size-sm)',
+                  padding: 'var(--space-xs) var(--space-md)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {drawing.drawing_name || 'Untitled'}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+export default DrawingSwitcher;

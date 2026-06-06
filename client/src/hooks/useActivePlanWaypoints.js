@@ -1,10 +1,11 @@
 /**
- * Hook for the View → Map page.
+ * Hook for the View → Map and Drawings pages.
  *
- * Loads every waypoint belonging to the active project's active plan(s) and
- * groups each waypoint's photos (most recent first). Data sources:
- *   - GET /v1/plans?project_id=<id>        (active plans, each with waypoints)
- *   - GET /v1/photos/project-photos?...    (active photos, with waypoint_id)
+ * Loads waypoints from public.waypoints (via active plans) and groups each
+ * waypoint's photos (most recent first). Server returns full waypoint rows
+ * (waypoint_id, waypoint_name, lat, lng, sequence, action, alt, plan_id, …)
+ * from GET /v1/plans?project_id=<id>; this hook uses waypoint_id, waypoint_name,
+ * lat, and lng for marker placement.
  */
 
 import { useEffect, useState } from 'react';
@@ -41,10 +42,25 @@ export function useActivePlanWaypoints(projectId, refreshCounter = 0) {
     setIsLoading(true);
     setError('');
 
+    const fetchPlansWithRetry = async (attempts = 3) => {
+      let lastErr;
+      for (let i = 0; i < attempts; i += 1) {
+        try {
+          return await apiClient.get(`/v1/plans?project_id=${projectId}`);
+        } catch (err) {
+          lastErr = err;
+          if (i < attempts - 1) {
+            await new Promise(resolve => setTimeout(resolve, 250 * (i + 1)));
+          }
+        }
+      }
+      throw lastErr;
+    };
+
     const run = async () => {
       try {
         const [plansResp, photosResp] = await Promise.all([
-          apiClient.get(`/v1/plans?project_id=${projectId}`),
+          fetchPlansWithRetry(),
           apiClient.get(`/v1/photos/project-photos?project_id=${projectId}`),
         ]);
         if (cancelled) return;

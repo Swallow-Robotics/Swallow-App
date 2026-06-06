@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, request, g
 from app.middleware.auth_middleware import jwt_required
 from app.services.auth.permissions import require_role, ROLE_ORDER
 from app.services.storage.supabase_client import supabase_client
+from app.utils.supabase_retry import execute_with_retry
 
 plans_bp = Blueprint("plans", __name__, url_prefix="/api/v1/plans")
 VIEW_ROLES = set(ROLE_ORDER)
@@ -73,13 +74,16 @@ def _fetch_waypoints_for_plans(plan_ids):
     """Return a dict mapping plan_id → sorted list of waypoints."""
     if not plan_ids:
         return {}
-    resp = (
-        supabase_client.client.table("waypoints")
-        .select("*")
-        .in_("plan_id", plan_ids)
-        .order("sequence", desc=False)
-        .execute()
-    )
+    def _run():
+        return (
+            supabase_client.client.table("waypoints")
+            .select("*")
+            .in_("plan_id", plan_ids)
+            .order("sequence", desc=False)
+            .execute()
+        )
+
+    resp = execute_with_retry(_run)
     result = {}
     for wp in resp.data or []:
         result.setdefault(wp["plan_id"], []).append(wp)
@@ -104,14 +108,17 @@ def list_plans():
         return jsonify(permission[0]), permission[1]
 
     try:
-        plans_resp = (
-            supabase_client.client.table("plans")
-            .select("*")
-            .eq("project_id", project_id)
-            .eq("active_plan", True)
-            .order("created_at", desc=False)
-            .execute()
-        )
+        def _fetch_plans():
+            return (
+                supabase_client.client.table("plans")
+                .select("*")
+                .eq("project_id", project_id)
+                .eq("active_plan", True)
+                .order("created_at", desc=False)
+                .execute()
+            )
+
+        plans_resp = execute_with_retry(_fetch_plans)
         plans = plans_resp.data or []
         plan_ids = [p["plan_id"] for p in plans]
         waypoints_by_plan = _fetch_waypoints_for_plans(plan_ids)
