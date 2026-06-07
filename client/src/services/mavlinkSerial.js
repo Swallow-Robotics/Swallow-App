@@ -1,17 +1,6 @@
-/**
- * MAVLink telemetry over Web Serial API.
- * Runs a background read loop from a serial port (e.g. telemetry radio),
- * parses MAVLink v1 and v2 packets and invokes onMessage for each decoded message.
- *
- * Receiving uses the hand-written decoders below for common-dialect telemetry
- * (HEARTBEAT, GPS, etc.) plus a table-driven decoder for the Skyer custom
- * dialect. Sending is table-driven too: encodeMavlinkMessage() builds a v2
- * frame from the generated dialect definitions (offsets + CRC_EXTRA), so the
- * custom messages stay in sync with the drone firmware via codegen.
- *
- * Requires: user gesture to call requestAndConnect() (browser security).
- * Supported in Chrome/Edge (Web Serial API).
- */
+/**MAVLink telemetry over Web Serial API. */
+
+/* global BigInt */
 
 import { MESSAGES, MESSAGES_BY_ID } from './mavlinkDialect.generated';
 
