@@ -30,7 +30,8 @@
     "test": "react-scripts test --env=jsdom --setupFilesAfterEnv=./jest.setup.js",
     "eject": "react-scripts eject",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "generate:mavlink": "node ./scripts/generateMavlink.js"
   },
   "eslintConfig": {
     "extends": [

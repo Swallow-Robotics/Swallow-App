@@ -3,12 +3,39 @@
  * Runs a background read loop from a serial port (e.g. telemetry radio),
  * parses MAVLink v1 and v2 packets and invokes onMessage for each decoded message.
  *
+ * Receiving uses the hand-written decoders below for common-dialect telemetry
+ * (HEARTBEAT, GPS, etc.) plus a table-driven decoder for the Skyer custom
+ * dialect. Sending is table-driven too: encodeMavlinkMessage() builds a v2
+ * frame from the generated dialect definitions (offsets + CRC_EXTRA), so the
+ * custom messages stay in sync with the drone firmware via codegen.
+ *
  * Requires: user gesture to call requestAndConnect() (browser security).
  * Supported in Chrome/Edge (Web Serial API).
  */
 
+import { MESSAGES, MESSAGES_BY_ID } from './mavlinkDialect.generated';
+
 const MAVLINK_STX_V1 = 0xfe;
 const MAVLINK_STX_V2 = 0xfd;
+
+// GCS defaults (MAVLink convention for a ground station / companion sender).
+const DEFAULT_SYSTEM_ID = 255;
+const DEFAULT_COMPONENT_ID = 190;
+
+// Base C type -> byte size, for table-driven encode/decode of the dialect.
+const TYPE_SIZE = {
+  char: 1,
+  int8_t: 1,
+  uint8_t: 1,
+  int16_t: 2,
+  uint16_t: 2,
+  int32_t: 4,
+  uint32_t: 4,
+  int64_t: 8,
+  uint64_t: 8,
+  float: 4,
+  double: 8,
+};
 
 // MAVLink v1 header: STX(1) + len(1) + seq(1) + sysid(1) + compid(1) + msgid(1) = 6
 const V1_HEADER_LEN = 6;
@@ -83,6 +110,9 @@ function readFloat32(buf, offset) {
 export function decodeMavlinkMessage(messageId, payload) {
   if (!payload || !(payload instanceof Uint8Array)) return null;
   const buf = payload;
+
+  const def = MESSAGES_BY_ID[messageId];
+  if (def) return decodeDialectMessage(def, buf);
 
   switch (messageId) {
     case MAV_MSG.HEARTBEAT: {
@@ -286,5 +316,197 @@ export async function runMavlinkReadLoop(
   } finally {
     reader.releaseLock();
     onEnd?.();
+  }
+}
+
+// ===========================================================================
+// Table-driven encode/decode for the generated dialect (custom messages).
+// ===========================================================================
+
+/** CRC-16/MCRF4XX (X25): the checksum MAVLink frames use. */
+function crcAccumulate(byte, crc) {
+  let tmp = byte ^ (crc & 0xff);
+  tmp = (tmp ^ (tmp << 4)) & 0xff;
+  return (((crc >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xffff;
+}
+
+function readScalar(view, type, offset) {
+  switch (type) {
+    case 'char':
+    case 'uint8_t':
+      return view.getUint8(offset);
+    case 'int8_t':
+      return view.getInt8(offset);
+    case 'uint16_t':
+      return view.getUint16(offset, true);
+    case 'int16_t':
+      return view.getInt16(offset, true);
+    case 'uint32_t':
+      return view.getUint32(offset, true);
+    case 'int32_t':
+      return view.getInt32(offset, true);
+    case 'float':
+      return view.getFloat32(offset, true);
+    case 'double':
+      return view.getFloat64(offset, true);
+    case 'uint64_t':
+      return view.getBigUint64(offset, true);
+    case 'int64_t':
+      return view.getBigInt64(offset, true);
+    default:
+      throw new Error(`Unsupported MAVLink type: ${type}`);
+  }
+}
+
+function writeScalar(view, type, offset, value) {
+  const n = value == null ? 0 : value;
+  switch (type) {
+    case 'char':
+    case 'uint8_t':
+      view.setUint8(offset, Number(n) & 0xff);
+      break;
+    case 'int8_t':
+      view.setInt8(offset, Number(n));
+      break;
+    case 'uint16_t':
+      view.setUint16(offset, Number(n) & 0xffff, true);
+      break;
+    case 'int16_t':
+      view.setInt16(offset, Number(n), true);
+      break;
+    case 'uint32_t':
+      view.setUint32(offset, Number(n) >>> 0, true);
+      break;
+    case 'int32_t':
+      view.setInt32(offset, Number(n) | 0, true);
+      break;
+    case 'float':
+      view.setFloat32(offset, Number(n), true);
+      break;
+    case 'double':
+      view.setFloat64(offset, Number(n), true);
+      break;
+    case 'uint64_t':
+      view.setBigUint64(offset, BigInt(n || 0), true);
+      break;
+    case 'int64_t':
+      view.setBigInt64(offset, BigInt(n || 0), true);
+      break;
+    default:
+      throw new Error(`Unsupported MAVLink type: ${type}`);
+  }
+}
+
+/**
+ * Decode a custom-dialect payload into { type, ...fields } using the field
+ * table. Handles MAVLink v2 payload truncation by zero-padding to full length.
+ */
+function decodeDialectMessage(def, payload) {
+  const buf = new Uint8Array(def.length);
+  buf.set(payload.subarray(0, Math.min(payload.length, def.length)));
+  const view = new DataView(buf.buffer);
+  const out = { type: def.name };
+  const elemSizeOf = t => TYPE_SIZE[t];
+
+  for (const f of def.fields) {
+    if (f.arrayLength > 0) {
+      if (f.type === 'char') {
+        out[f.name] = readString(buf, f.offset, f.arrayLength);
+      } else {
+        const size = elemSizeOf(f.type);
+        const arr = new Array(f.arrayLength);
+        for (let i = 0; i < f.arrayLength; i++) {
+          arr[i] = readScalar(view, f.type, f.offset + i * size);
+        }
+        out[f.name] = arr;
+      }
+    } else {
+      out[f.name] = readScalar(view, f.type, f.offset);
+    }
+  }
+  return out;
+}
+
+// Per-link outgoing sequence number (wraps at 256).
+let txSeq = 0;
+
+/**
+ * Build a complete MAVLink v2 frame for a dialect message.
+ * @param {string} name - message name, e.g. 'MISSION_CHUNK'
+ * @param {Object} values - field name -> value (arrays for array fields).
+ *   Missing fields default to 0; arrays shorter than declared are zero-padded.
+ * @param {{ systemId?: number, componentId?: number, seq?: number }} [options]
+ * @returns {Uint8Array} the framed bytes ready to write to the serial port
+ */
+export function encodeMavlinkMessage(name, values = {}, options = {}) {
+  const def = MESSAGES[name];
+  if (!def) throw new Error(`Unknown MAVLink message: ${name}`);
+
+  const systemId = options.systemId ?? DEFAULT_SYSTEM_ID;
+  const componentId = options.componentId ?? DEFAULT_COMPONENT_ID;
+  const seq = options.seq != null ? options.seq & 0xff : txSeq;
+  if (options.seq == null) txSeq = (txSeq + 1) & 0xff;
+
+  const payload = new Uint8Array(def.length);
+  const view = new DataView(payload.buffer);
+  for (const f of def.fields) {
+    const value = values[f.name];
+    if (f.arrayLength > 0) {
+      const size = TYPE_SIZE[f.type];
+      const arr =
+        f.type === 'char' && typeof value === 'string'
+          ? Array.from(value, c => c.charCodeAt(0))
+          : Array.isArray(value)
+          ? value
+          : value == null
+          ? []
+          : [value];
+      for (let i = 0; i < f.arrayLength; i++) {
+        writeScalar(view, f.type, f.offset + i * size, arr[i] ?? 0);
+      }
+    } else {
+      writeScalar(view, f.type, f.offset, value);
+    }
+  }
+
+  // v2 header: STX, len, incompat, compat, seq, sysid, compid, msgid[3]
+  const len = payload.length;
+  const frame = new Uint8Array(V2_HEADER_LEN + len + 2);
+  frame[0] = MAVLINK_STX_V2;
+  frame[1] = len;
+  frame[2] = 0; // incompat flags (no signing)
+  frame[3] = 0; // compat flags
+  frame[4] = seq;
+  frame[5] = systemId;
+  frame[6] = componentId;
+  frame[7] = def.id & 0xff;
+  frame[8] = (def.id >> 8) & 0xff;
+  frame[9] = (def.id >> 16) & 0xff;
+  frame.set(payload, V2_HEADER_LEN);
+
+  let crc = 0xffff;
+  for (let i = 1; i < V2_HEADER_LEN + len; i++) crc = crcAccumulate(frame[i], crc);
+  crc = crcAccumulate(def.crcExtra, crc);
+  frame[V2_HEADER_LEN + len] = crc & 0xff;
+  frame[V2_HEADER_LEN + len + 1] = (crc >> 8) & 0xff;
+
+  return frame;
+}
+
+/**
+ * Write raw framed bytes to an open serial port. Acquires and releases the
+ * writer per call so it doesn't conflict with the read loop.
+ * @param {SerialPort} port
+ * @param {Uint8Array} frame
+ */
+export async function sendMavlinkFrame(port, frame) {
+  if (!port || !port.writable) {
+    throw new Error('Serial port is not open for writing');
+  }
+  const writer = port.writable.getWriter();
+  try {
+    await writer.write(frame);
+  } finally {
+    writer.releaseLock();
   }
 }
