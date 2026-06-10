@@ -19,6 +19,8 @@ import {
   requestSerialPort,
   runMavlinkReadLoop,
   decodeMavlinkMessage,
+  encodeMavlinkMessage,
+  sendMavlinkFrame,
 } from '../services/mavlinkSerial';
 
 const DEFAULT_BAUD = 57600;
@@ -42,6 +44,7 @@ const defaultContext = {
   unknownMsgIds: [],
   connect: async () => {},
   disconnect: () => {},
+  sendMessage: async () => {},
   clearErrorLog: () => {},
   clearStatusMessages: () => {},
 };
@@ -185,6 +188,31 @@ export function MavlinkTelemetryProvider({ children }) {
     setError(null);
   }, []);
 
+  /**
+   * Encode and send a dialect message to the drone over the open serial link.
+   * @param {string} name - e.g. 'MISSION_CHUNK'
+   * @param {Object} values - field name -> value
+   * @param {{ systemId?: number, componentId?: number }} [options]
+   */
+  const sendMessage = useCallback(
+    async (name, values = {}, options = {}) => {
+      const port = portRef.current;
+      if (!port) {
+        const err = new Error('Cannot send: telemetry radio not connected');
+        pushError(err.message);
+        throw err;
+      }
+      try {
+        const frame = encodeMavlinkMessage(name, values, options);
+        await sendMavlinkFrame(port, frame);
+      } catch (err) {
+        pushError(`Send ${name} failed: ${err?.message ?? err}`);
+        throw err;
+      }
+    },
+    [pushError]
+  );
+
   const clearErrorLog = useCallback(() => setErrorLog([]), []);
   const clearStatusMessages = useCallback(() => setStatusMessages([]), []);
 
@@ -205,6 +233,7 @@ export function MavlinkTelemetryProvider({ children }) {
     unknownMsgIds,
     connect,
     disconnect,
+    sendMessage,
     clearErrorLog,
     clearStatusMessages,
   };
