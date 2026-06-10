@@ -30,14 +30,23 @@ const markerStyle = (pixelX, pixelY, zIndex = 2) => ({
   pointerEvents: 'auto',
 });
 
-export function ControlPointMarker({ pixelX, pixelY, label, variant = 'a' }) {
+export function ControlPointMarker({
+  pixelX,
+  pixelY,
+  screenX,
+  screenY,
+  label,
+  variant = 'a',
+}) {
+  const x = screenX ?? pixelX;
+  const y = screenY ?? pixelY;
   return (
     <span
       className={`calib-pin-overlay calib-pin-overlay--${variant}`}
       style={{
         position: 'absolute',
-        left: pixelX,
-        top: pixelY,
+        left: x,
+        top: y,
         transform: 'translate(-50%, -50%)',
         pointerEvents: 'none',
       }}

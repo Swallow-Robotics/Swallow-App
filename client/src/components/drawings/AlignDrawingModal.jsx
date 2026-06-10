@@ -9,16 +9,18 @@ import CoordTextInput from './CoordTextInput';
 const STANDARD_STYLE_URL =
   'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
+const SATELLITE_RASTER_SOURCE = {
+  type: 'raster',
+  tiles: [
+    'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  ],
+  tileSize: 256,
+};
+
 const SATELLITE_STYLE = {
   version: 8,
   sources: {
-    'satellite-raster': {
-      type: 'raster',
-      tiles: [
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-    },
+    'satellite-raster': SATELLITE_RASTER_SOURCE,
   },
   layers: [
     { id: 'satellite-raster', type: 'raster', source: 'satellite-raster' },
@@ -49,6 +51,7 @@ const AlignDrawingModal = ({
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const mapResizeObserverRef = useRef(null);
   const markersRef = useRef([]);
   const mapAlignStepRef = useRef(STEP_DRAWING);
   const pendingPixelRef = useRef(null);
@@ -192,6 +195,7 @@ const AlignDrawingModal = ({
     mapInstanceRef.current = map;
 
     const handleClick = e => {
+      if (!map.loaded?.()) return;
       if (mapAlignStepRef.current !== STEP_MAP) return;
       const pixel = pendingPixelRef.current;
       if (!pixel) return;
@@ -240,9 +244,20 @@ const AlignDrawingModal = ({
       if (canvas) canvas.style.cursor = 'crosshair';
     };
 
-    const onLoad = () => {
+    const refreshMapLayout = () => {
+      try {
+        map.resize();
+      } catch {
+        // ignore
+      }
       syncMapMarkers(controlPointsRef.current);
       setCrosshairCursor();
+    };
+
+    const onLoad = () => {
+      requestAnimationFrame(() => {
+        refreshMapLayout();
+      });
     };
     map.on('load', onLoad);
     map.on('click', handleClick);
@@ -250,11 +265,21 @@ const AlignDrawingModal = ({
     map.on('dragend', setCrosshairCursor);
     map.on('mousemove', setCrosshairCursor);
 
+    mapResizeObserverRef.current = new ResizeObserver(() => {
+      if (mapInstanceRef.current === map) {
+        refreshMapLayout();
+      }
+    });
+    mapResizeObserverRef.current.observe(el);
+
     return () => {
+      map.off('load', onLoad);
       map.off('click', handleClick);
       map.off('dragstart', setCrosshairCursor);
       map.off('dragend', setCrosshairCursor);
       map.off('mousemove', setCrosshairCursor);
+      mapResizeObserverRef.current?.disconnect();
+      mapResizeObserverRef.current = null;
       clearMapMarkers();
       map.remove();
       mapInstanceRef.current = null;
@@ -275,11 +300,51 @@ const AlignDrawingModal = ({
     }
   }, [controlPoints, mode, syncMapMarkers]);
 
-  useEffect(() => {
+  const handleBasemapToggle = useCallback(() => {
     const map = mapInstanceRef.current;
-    if (!map || mode !== MODE_MAP) return;
-    map.setStyle(basemap === 'labeled' ? STANDARD_STYLE_URL : SATELLITE_STYLE);
-  }, [basemap, mode]);
+    if (!map) return;
+
+    const nextBasemap = basemap === 'labeled' ? 'satellite' : 'labeled';
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    const bearing = map.getBearing();
+    const pitch = map.getPitch();
+
+    const restoreView = () => {
+      map.jumpTo({ center, zoom, bearing, pitch });
+      try {
+        map.resize();
+      } catch {
+        // ignore
+      }
+      syncMapMarkers(controlPointsRef.current);
+      const canvas = map.getCanvas?.();
+      if (canvas) canvas.style.cursor = 'crosshair';
+    };
+
+    setBasemap(nextBasemap);
+
+    if (nextBasemap === 'satellite') {
+      map.once('style.load', restoreView);
+      map.setStyle(SATELLITE_STYLE);
+      return;
+    }
+
+    map.once('style.load', () => {
+      restoreView();
+      try {
+        if (map.getLayer('satellite-raster')) {
+          map.removeLayer('satellite-raster');
+        }
+        if (map.getSource('satellite-raster')) {
+          map.removeSource('satellite-raster');
+        }
+      } catch {
+        // ignore — satellite overlay may not exist on labeled style reload
+      }
+    });
+    map.setStyle(STANDARD_STYLE_URL);
+  }, [basemap, syncMapMarkers]);
 
   const handleDrawingClick = pixel => {
     if (mode === MODE_COORDINATES) {
@@ -546,29 +611,41 @@ const AlignDrawingModal = ({
               onImageDimensions={setImageDimensions}
               forceCrosshair
               style={{ flex: 1, minHeight: 280, minWidth: 0 }}
-            >
-              {controlPoints.map((pt, i) => (
-                <ControlPointMarker
-                  key={pt.localId}
-                  pixelX={pt.pixel_x}
-                  pixelY={pt.pixel_y}
-                  label={i + 1}
-                  variant={
-                    editingPointId === pt.localId
-                      ? 'b'
-                      : 'a'
-                  }
-                />
-              ))}
-              {pendingPixel ? (
-                <ControlPointMarker
-                  pixelX={pendingPixel.pixel_x}
-                  pixelY={pendingPixel.pixel_y}
-                  label="?"
-                  variant="b"
-                />
-              ) : null}
-            </DrawingPanZoomSurface>
+              fixedOverlay={({ toScreen }) => (
+                <>
+                  {controlPoints.map((pt, i) => {
+                    const pos = toScreen(pt.pixel_x, pt.pixel_y);
+                    return (
+                      <ControlPointMarker
+                        key={pt.localId}
+                        screenX={pos.x}
+                        screenY={pos.y}
+                        label={i + 1}
+                        variant={
+                          editingPointId === pt.localId ? 'b' : 'a'
+                        }
+                      />
+                    );
+                  })}
+                  {pendingPixel
+                    ? (() => {
+                        const pos = toScreen(
+                          pendingPixel.pixel_x,
+                          pendingPixel.pixel_y,
+                        );
+                        return (
+                          <ControlPointMarker
+                            screenX={pos.x}
+                            screenY={pos.y}
+                            label="?"
+                            variant="b"
+                          />
+                        );
+                      })()
+                    : null}
+                </>
+              )}
+            />
           </div>
 
           {mode === MODE_MAP ? (
@@ -580,9 +657,7 @@ const AlignDrawingModal = ({
                 <button
                   type="button"
                   className="calib-basemap-btn"
-                  onClick={() =>
-                    setBasemap(b => (b === 'labeled' ? 'satellite' : 'labeled'))
-                  }
+                  onClick={handleBasemapToggle}
                 >
                   {basemap === 'labeled'
                     ? 'Switch to Satellite'

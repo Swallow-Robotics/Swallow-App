@@ -69,6 +69,14 @@ def _solve_least_squares(
     return _solve_linear_system_3x3(normal_rows)
 
 
+def _solve_affine_rows(
+    rows: Sequence[Tuple[float, float, float, float]],
+) -> Tuple[float, float, float]:
+    if len(rows) == 3:
+        return _solve_linear_system_3x3(rows)
+    return _solve_least_squares(rows)
+
+
 def compute_affine_from_control_points(
     control_points: Sequence[Dict],
 ) -> Dict[str, float]:
@@ -79,32 +87,30 @@ def compute_affine_from_control_points(
     if len(control_points) < 3:
         raise AffineTransformError("At least 3 control points are required.")
 
+    count = len(control_points)
+    lng_mean = sum(float(pt["longitude"]) for pt in control_points) / count
+    lat_mean = sum(float(pt["latitude"]) for pt in control_points) / count
+    px_mean = sum(float(pt["pixel_x"]) for pt in control_points) / count
+    py_mean = sum(float(pt["pixel_y"]) for pt in control_points) / count
+
     x_rows = []
     y_rows = []
     for pt in control_points:
-        lng = float(pt["longitude"])
-        lat = float(pt["latitude"])
-        px = float(pt["pixel_x"])
-        py = float(pt["pixel_y"])
+        lng = float(pt["longitude"]) - lng_mean
+        lat = float(pt["latitude"]) - lat_mean
+        px = float(pt["pixel_x"]) - px_mean
+        py = float(pt["pixel_y"]) - py_mean
         x_rows.append((lng, lat, 1.0, px))
         y_rows.append((lng, lat, 1.0, py))
 
-    a, b, c = (
-        _solve_linear_system_3x3(x_rows)
-        if len(x_rows) == 3
-        else _solve_least_squares(x_rows)
-    )
-    d, e, f = (
-        _solve_linear_system_3x3(y_rows)
-        if len(y_rows) == 3
-        else _solve_least_squares(y_rows)
-    )
+    a, b, c_norm = _solve_affine_rows(x_rows)
+    d, e, f_norm = _solve_affine_rows(y_rows)
 
     return {
         "transform_a": a,
         "transform_b": b,
-        "transform_c": c,
+        "transform_c": c_norm + px_mean - a * lng_mean - b * lat_mean,
         "transform_d": d,
         "transform_e": e,
-        "transform_f": f,
+        "transform_f": f_norm + py_mean - d * lng_mean - e * lat_mean,
     }
