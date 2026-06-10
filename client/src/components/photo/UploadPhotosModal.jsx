@@ -252,42 +252,22 @@ const UploadPhotosModal = ({ open, projectId, onClose, onUploaded }) => {
                   style={{ opacity: row.isGhost ? 0.4 : 1 }}
                 >
                   <td>
-                    <div
-                      style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                    <input
+                      ref={el => {
+                        fileInputs.current[row.localId] = el;
+                      }}
+                      type="file"
+                      accept="image/jpeg,image/png"
+                      style={{ display: 'none' }}
+                      onChange={e => handleFile(row.localId, e.target.files)}
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary btn-choose-file"
+                      onClick={() => fileInputs.current[row.localId]?.click()}
                     >
-                      <button
-                        type="button"
-                        className="btn-secondary btn-icon-sm"
-                        style={{
-                          fontSize: '0.85em',
-                          padding: '2px 8px',
-                          width: 'auto',
-                        }}
-                        onClick={() => fileInputs.current[row.localId]?.click()}
-                      >
-                        Choose File
-                      </button>
-                      <span
-                        style={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          color: 'var(--color-text-secondary)',
-                        }}
-                        title={row.fileName}
-                      >
-                        {row.fileName}
-                      </span>
-                      <input
-                        ref={el => {
-                          fileInputs.current[row.localId] = el;
-                        }}
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        style={{ display: 'none' }}
-                        onChange={e => handleFile(row.localId, e.target.files)}
-                      />
-                    </div>
+                      {row.fileName || 'Choose file'}
+                    </button>
                   </td>
                   <td>
                     <select

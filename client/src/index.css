@@ -172,7 +172,7 @@ p {
   color: var(--color-text-primary);
 }
 
-/* Form Elements */
+/* Form Elements — file pickers use .btn-secondary.btn-choose-file (see App.css) */
 label {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);

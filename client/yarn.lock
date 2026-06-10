@@ -5474,6 +5474,7 @@ __metadata:
     jszip: "npm:^3.10.1"
     kill-port: "npm:^1.0.1"
     maplibre-gl: "npm:^5.9.0"
+    pannellum: "npm:^2.5.7"
     react: "npm:^19.1.1"
     react-dom: "npm:^19.1.1"
     react-router-dom: "npm:^6.28.0"
@@ -11848,6 +11849,13 @@ __metadata:
   version: 1.0.11
   resolution: "pako@npm:1.0.11"
   checksum: 10c0/86dd99d8b34c3930345b8bbeb5e1cd8a05f608eeb40967b293f72fe469d0e9c88b783a8777e4cc7dc7c91ce54c5e93d88ff4b4f060e6ff18408fd21030d9ffbe
+  languageName: node
+  linkType: hard
+
+"pannellum@npm:^2.5.7":
+  version: 2.5.7
+  resolution: "pannellum@npm:2.5.7"
+  checksum: 10c0/4086741935e5eb0d36228745d28d277ea3d774bf6e7d08f2e3c8bc8b174672c78976f5d9d60dcf14bd06efeb7121be57b0b0c22596eba1610c612bd80be07170
   languageName: node
   linkType: hard
 

@@ -305,7 +305,10 @@ const DrawingsPage = () => {
         open={!!selectedWaypoint}
         waypoint={selectedWaypoint}
         onClose={() => setSelectedWaypoint(null)}
-        onPhotoClick={photoId => navigate(`/view/photos/${photoId}`)}
+        onPhotoClick={photo => {
+          if (!photo?.photo_id) return;
+          navigate(`/view/photos/${photo.photo_id}`);
+        }}
       />
 
       <EditLocationModal

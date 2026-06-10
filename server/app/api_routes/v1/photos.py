@@ -689,7 +689,7 @@ def _to_float_or_none(value: Any) -> Optional[float]:
 
 
 def _serialize_flight_photo(
-    record: Dict[str, Any], waypoint_names: Dict[str, str]
+    record: Dict[str, Any], waypoint_meta: Dict[str, Dict[str, Any]]
 ) -> Dict[str, Any]:
     key = record.get("r2_path")
     resolved_url = record.get("r2_url") or (
@@ -700,6 +700,7 @@ def _serialize_flight_photo(
         r2_client.resolve_url(thumb_path) if thumb_path else None
     )
     waypoint_id = record.get("waypoint_id")
+    wp = waypoint_meta.get(waypoint_id) if waypoint_id else None
     return {
         "photo_id": record.get("photo_id"),
         "flight_id": record.get("flight_id"),
@@ -715,7 +716,8 @@ def _serialize_flight_photo(
         "drone_heading": record.get("drone_heading"),
         "gimbal_position": record.get("gimbal_position"),
         "waypoint_id": waypoint_id,
-        "waypoint_name": waypoint_names.get(waypoint_id) if waypoint_id else None,
+        "waypoint_name": wp.get("waypoint_name") if wp else None,
+        "waypoint_action": wp.get("action") if wp else None,
         "active_photo": record.get("active_photo"),
     }
 
@@ -766,19 +768,23 @@ def list_project_photos():
         photos = photos_resp.data or []
 
         waypoint_ids = list({p["waypoint_id"] for p in photos if p.get("waypoint_id")})
-        waypoint_names: Dict[str, str] = {}
+        waypoint_meta: Dict[str, Dict[str, Any]] = {}
         if waypoint_ids:
             wp_resp = (
                 supabase_client.client.table("waypoints")
-                .select("waypoint_id, waypoint_name")
+                .select("waypoint_id, waypoint_name, action")
                 .in_("waypoint_id", waypoint_ids)
                 .execute()
             )
-            waypoint_names = {
-                w["waypoint_id"]: w.get("waypoint_name") for w in wp_resp.data or []
+            waypoint_meta = {
+                w["waypoint_id"]: {
+                    "waypoint_name": w.get("waypoint_name"),
+                    "action": w.get("action"),
+                }
+                for w in wp_resp.data or []
             }
 
-        serialized = [_serialize_flight_photo(p, waypoint_names) for p in photos]
+        serialized = [_serialize_flight_photo(p, waypoint_meta) for p in photos]
         return jsonify({"photos": serialized})
     except Exception as exc:
         return jsonify({"error": f"Failed to query photos: {exc}"}), 500

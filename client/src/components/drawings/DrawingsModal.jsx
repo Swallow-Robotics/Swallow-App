@@ -288,11 +288,7 @@ const DrawingsModal = ({ open, projectId, drawings, onClose, onSaved }) => {
                           />
                           <button
                             type="button"
-                            className="btn-secondary"
-                            style={{
-                              fontSize: 'var(--font-size-sm)',
-                              padding: '2px 8px',
-                            }}
+                            className="btn-secondary btn-choose-file"
                             onClick={() =>
                               fileInputs.current[row.localId]?.click()
                             }

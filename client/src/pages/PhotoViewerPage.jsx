@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context';
 import apiClient from '../services/api';
 import PanZoomImage from '../components/photo/PanZoomImage';
+import PanoramaViewer from '../components/photo/PanoramaViewer';
 import WaypointPhotoSwitcher from '../components/photo/WaypointPhotoSwitcher';
 import WaypointDropdown from '../components/photo/WaypointDropdown';
 
@@ -117,10 +118,17 @@ const PhotoViewerPage = () => {
         }}
       >
         {current?.r2_url ? (
-          <PanZoomImage
-            src={current.r2_url}
-            alt={current.waypoint_name || 'Photo'}
-          />
+          current.waypoint_action === 'photo_360' ? (
+            <PanoramaViewer
+              key={current.photo_id}
+              src={current.r2_url}
+            />
+          ) : (
+            <PanZoomImage
+              src={current.r2_url}
+              alt={current.waypoint_name || 'Photo'}
+            />
+          )
         ) : (
           <div
             style={{

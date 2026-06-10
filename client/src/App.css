@@ -1130,6 +1130,15 @@
   line-height: 1;
 }
 
+/* Choose file — compact secondary trigger for hidden <input type="file"> */
+.btn-secondary.btn-choose-file {
+  font-size: var(--font-size-sm);
+  padding: 2px 8px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Menu item button — full-width dropdown list item */
 .btn-menu-item {
   display: block;

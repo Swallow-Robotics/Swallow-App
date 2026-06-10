@@ -110,7 +110,7 @@ const toUtcIso = (dateStr, timeStr, amPm, tz) => {
 };
 
 const isPlanComplete = f =>
-  f.droneId && f.dockId && f.pilotId && f.planId && f.airspaceAuthorization && f.visualObserver;
+  f.pilotId && f.planId && f.airspaceAuthorization && f.visualObserver;
 
 const isFlyComplete = f => {
   const base =
@@ -183,8 +183,8 @@ const SimulateFlightModal = ({ open, projectId, onClose, onSubmit, error }) => {
     }
     onSubmit({
       project_id: projectId,
-      drone_id: planForm.droneId,
-      dock_id: planForm.dockId,
+      drone_id: planForm.droneId || null,
+      dock_id: planForm.dockId || null,
       pilot_id: planForm.pilotId,
       plan_id: planForm.planId,
       airspace_authorization: planForm.airspaceAuthorization,
