@@ -78,6 +78,7 @@ def create_app(config_name=None):
     from app.api_routes.v1.profile import bp as profile_v1_bp
     from app.api_routes.v1.locations import bp as locations_v1_bp
     from app.api_routes.v1.organizations import bp as organizations_v1_bp
+    from app.api_routes.v1.waypoints import bp as waypoints_v1_bp
     from app.api_routes.files import bp as files_bp
     from app.api_routes.public_links import bp as public_links_bp
 
@@ -92,6 +93,7 @@ def create_app(config_name=None):
     app.register_blueprint(profile_v1_bp, url_prefix="/api/v1/profile")
     app.register_blueprint(locations_v1_bp, url_prefix="/api/v1/locations")
     app.register_blueprint(organizations_v1_bp, url_prefix="/api/v1/organizations")
+    app.register_blueprint(waypoints_v1_bp, url_prefix="/api/v1/waypoints")
     app.register_blueprint(files_bp)
     app.register_blueprint(public_links_bp)
 

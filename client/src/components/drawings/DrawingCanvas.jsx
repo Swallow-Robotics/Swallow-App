@@ -11,6 +11,7 @@ const DrawingCanvas = ({
   projectMarker,
   onWaypointClick,
   onProjectMarkerClick,
+  onImageClick,
 }) => {
   const nativeW = Number(width) || 1;
   const nativeH = Number(height) || 1;
@@ -21,6 +22,7 @@ const DrawingCanvas = ({
       alt={alt}
       width={nativeW}
       height={nativeH}
+      onImageClick={onImageClick}
       style={{
         position: 'absolute',
         inset: 0,

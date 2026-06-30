@@ -19,18 +19,25 @@ MAX_DRAWINGS_PER_PROJECT = 5
 DRAWING_R2_KEY_TEMPLATE = "projects/{project_id}/drawings/{drawing_id}.{ext}"
 
 
-def list_drawings_by_project(project_id: str) -> List[Dict[str, Any]]:
-    """Return all drawings for a project ordered by `order`."""
+def list_drawings_by_project(
+    project_id: str, drawing_type: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Return all drawings for a project ordered by `order`.
+
+    If ``drawing_type`` is provided, only rows matching that type are returned.
+    """
     if not supabase_client.client:
         return []
 
     def _run():
-        return (
+        query = (
             supabase_client.client.table("drawings")
             .select("*")
             .eq("project_id", project_id)
-            .execute()
         )
+        if drawing_type:
+            query = query.eq("drawing_type", drawing_type)
+        return query.execute()
 
     resp = execute_with_retry(_run)
     rows = resp.data or []
@@ -116,6 +123,27 @@ def delete_drawing(drawing_id: str) -> bool:
     drawing = get_drawing_by_id(drawing_id)
     if not drawing:
         return False
+
+    # For floor plan drawings, cascade: soft-delete photos then delete waypoints.
+    if drawing.get("drawing_type") == "floor_plan" and supabase_client.client:
+        try:
+            wp_resp = (
+                supabase_client.client.table("waypoints")
+                .select("waypoint_id")
+                .eq("drawing_id", drawing_id)
+                .execute()
+            )
+            waypoint_ids = [w["waypoint_id"] for w in (wp_resp.data or [])]
+            if waypoint_ids:
+                supabase_client.client.table("photos").update(
+                    {"active_photo": False}
+                ).in_("waypoint_id", waypoint_ids).execute()
+                supabase_client.client.table("waypoints").delete().in_(
+                    "waypoint_id", waypoint_ids
+                ).execute()
+        except Exception:
+            pass
+
     r2_path = drawing.get("r2_path")
     if r2_path and r2_client.client:
         r2_client.delete_file(r2_path)
@@ -138,6 +166,7 @@ def create_drawing_record(
     width: int,
     height: int,
     drawing_id: Optional[str] = None,
+    drawing_type: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     if not supabase_client.client:
         return None
@@ -155,6 +184,8 @@ def create_drawing_record(
         "height": height,
         "aligned": False,
     }
+    if drawing_type:
+        payload["drawing_type"] = drawing_type
     resp = supabase_client.client.table("drawings").insert(payload).execute()
     rows = resp.data or []
     return rows[0] if rows else None

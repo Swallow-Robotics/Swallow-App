@@ -1517,6 +1517,55 @@ class SupabaseClient:
                 if row.get("photo_id"):
                     stats[pid]["photo_count"] += 1
 
+            # Also count floor plan photos (flight_id=NULL) via drawings → waypoints
+            drw_resp = (
+                self.client.table("drawings")
+                .select("drawing_id, project_id")
+                .in_("project_id", project_ids)
+                .execute()
+            )
+            drawing_to_project: Dict[str, str] = {}
+            for row in drw_resp.data or []:
+                did = row.get("drawing_id")
+                pid = row.get("project_id")
+                if did and pid:
+                    drawing_to_project[did] = pid
+
+            drawing_ids = list(drawing_to_project.keys())
+            if drawing_ids:
+                wp_resp = (
+                    self.client.table("waypoints")
+                    .select("waypoint_id, drawing_id")
+                    .in_("drawing_id", drawing_ids)
+                    .execute()
+                )
+                waypoint_to_project: Dict[str, str] = {}
+                for row in wp_resp.data or []:
+                    wid = row.get("waypoint_id")
+                    did = row.get("drawing_id")
+                    if wid and did and did in drawing_to_project:
+                        waypoint_to_project[wid] = drawing_to_project[did]
+
+                floor_wids = list(waypoint_to_project.keys())
+                if floor_wids:
+                    floor_photo_resp = (
+                        self.client.table("photos")
+                        .select("photo_id, waypoint_id")
+                        .in_("waypoint_id", floor_wids)
+                        .eq("active_photo", True)
+                        .eq("capture_method", "360_camera")
+                        .execute()
+                    )
+                    for row in floor_photo_resp.data or []:
+                        wid = row.get("waypoint_id")
+                        pid = waypoint_to_project.get(wid)
+                        if not pid or pid not in stats:
+                            continue
+                        if wid:
+                            seen_waypoints[pid].add(wid)
+                        if row.get("photo_id"):
+                            stats[pid]["photo_count"] += 1
+
             for pid in project_ids:
                 stats[pid]["waypoint_count"] = len(seen_waypoints[pid])
 

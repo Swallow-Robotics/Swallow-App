@@ -115,6 +115,7 @@
   height: 44px;
   padding: 0 var(--banner-padding-x);
   box-sizing: border-box;
+  position: relative;
 }
 
 .App-subnav__link {
@@ -169,6 +170,55 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ===========================
+   VIEW MODE TOGGLE
+   =========================== */
+
+.App-subnav__mode-toggle {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-cool-gray-feather);
+  border-radius: 999px;
+  overflow: hidden;
+  height: 26px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.App-subnav__mode-btn {
+  padding: 0 10px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-charcoal-slate);
+  background: var(--color-warm-feather-white);
+  border: none;
+  cursor: pointer;
+  height: 100%;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.App-subnav__mode-btn + .App-subnav__mode-btn {
+  border-left: 1px solid var(--color-cool-gray-feather);
+}
+
+.App-subnav__mode-btn:hover:not(.App-subnav__mode-btn--active) {
+  background: var(--color-surface-secondary, #f5f7fa);
+}
+
+.App-subnav__mode-btn--active {
+  background: var(--color-primary);
+  color: #ffffff;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* ===========================

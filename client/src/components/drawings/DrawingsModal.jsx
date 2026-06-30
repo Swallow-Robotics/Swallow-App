@@ -33,7 +33,14 @@ const buildInitialRows = drawings => {
 const isRowComplete = row =>
   !!row.drawing_name?.trim() && (row.drawing_id || row.file);
 
-const DrawingsModal = ({ open, projectId, drawings, onClose, onSaved }) => {
+const DrawingsModal = ({
+  open,
+  projectId,
+  drawings,
+  drawingType,
+  onClose,
+  onSaved,
+}) => {
   const [rows, setRows] = useState([makeGhostRow()]);
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -131,6 +138,9 @@ const DrawingsModal = ({ open, projectId, drawings, onClose, onSaved }) => {
         drawing_name: row.drawing_name.trim(),
         order: i + 1,
       };
+      if (drawingType) {
+        entry.drawing_type = drawingType;
+      }
       if (row.drawing_id) {
         entry.drawing_id = row.drawing_id;
       } else {

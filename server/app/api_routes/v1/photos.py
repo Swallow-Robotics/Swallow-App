@@ -725,7 +725,18 @@ def _serialize_flight_photo(
 @bp.route("/project-photos", methods=["GET"])
 @jwt_required
 def list_project_photos():
-    """List active photos for a project, resolved through its flights."""
+    """List active photos for a project.
+
+    Two disjoint code paths based on capture_method:
+
+    * capture_method=drone (or no filter)
+      Resolved through the flights table: projects → flights → photos.
+      This is the existing site plan path and is completely unchanged.
+
+    * capture_method=360_camera
+      Resolved through the drawings chain: drawings → waypoints → photos.
+      No flights, plans, drones, or mission entities are involved.
+    """
     if not supabase_client.client:
         return jsonify({"error": "Supabase client not configured"}), 500
 
@@ -746,7 +757,56 @@ def list_project_photos():
         payload, status = permission
         return jsonify(payload), status
 
+    capture_method = (request.args.get("capture_method") or "").strip() or None
+
     try:
+        # ----------------------------------------------------------------
+        # Floor plan path: drawings → waypoints → photos
+        # ----------------------------------------------------------------
+        if capture_method == "360_camera":
+            drw_resp = (
+                supabase_client.client.table("drawings")
+                .select("drawing_id")
+                .eq("project_id", project_id)
+                .eq("drawing_type", "floor_plan")
+                .execute()
+            )
+            drawing_ids = [d["drawing_id"] for d in (drw_resp.data or [])]
+            if not drawing_ids:
+                return jsonify({"photos": []})
+
+            wp_resp = (
+                supabase_client.client.table("waypoints")
+                .select("waypoint_id, waypoint_name, action")
+                .in_("drawing_id", drawing_ids)
+                .execute()
+            )
+            floor_waypoints = wp_resp.data or []
+            waypoint_ids_floor = [w["waypoint_id"] for w in floor_waypoints]
+            waypoint_meta_floor: Dict[str, Dict[str, Any]] = {
+                w["waypoint_id"]: w for w in floor_waypoints
+            }
+
+            if not waypoint_ids_floor:
+                return jsonify({"photos": []})
+
+            photo_resp = (
+                supabase_client.client.table("photos")
+                .select("*")
+                .in_("waypoint_id", waypoint_ids_floor)
+                .eq("active_photo", True)
+                .eq("capture_method", "360_camera")
+                .order("taken_at", desc=True)
+                .execute()
+            )
+            photos_floor = photo_resp.data or []
+            return jsonify(
+                {"photos": [_serialize_photo(p, waypoint_meta_floor) for p in photos_floor]}
+            )
+
+        # ----------------------------------------------------------------
+        # Site plan path: flights → photos  (existing logic, unchanged)
+        # ----------------------------------------------------------------
         flights_resp = (
             supabase_client.client.table("flights")
             .select("flight_id")
@@ -757,14 +817,15 @@ def list_project_photos():
         if not flight_ids:
             return jsonify({"photos": []})
 
-        photos_resp = (
+        photo_query = (
             supabase_client.client.table("photos")
             .select("*")
             .in_("flight_id", flight_ids)
             .eq("active_photo", True)
+            .eq("capture_method", "drone")
             .order("taken_at", desc=True)
-            .execute()
         )
+        photos_resp = photo_query.execute()
         photos = photos_resp.data or []
 
         waypoint_ids = list({p["waypoint_id"] for p in photos if p.get("waypoint_id")})
@@ -869,6 +930,7 @@ def manual_upload_photo():
         else:
             thumbnail_key = None
 
+    capture_method_val = (request.form.get("capture_method") or "").strip() or None
     row = {
         "photo_id": photo_id,
         "flight_id": flight_id,
@@ -886,6 +948,8 @@ def manual_upload_photo():
         "thumbnail_r2_url": thumbnail_url,
         "active_photo": True,
     }
+    if capture_method_val:
+        row["capture_method"] = capture_method_val
 
     try:
         resp = supabase_client.client.table("photos").insert(row).execute()
@@ -1002,3 +1066,129 @@ def deactivate_flight_photo(photo_id):
         return jsonify({"error": f"Failed to delete photo: {exc}"}), 500
 
     return jsonify({"message": "Photo deleted successfully"})
+
+
+# ---------------------------------------------------------------------------
+# Floor plan photo upload.
+#
+# Data path: photos only — drawings → waypoints → photos.
+# No interaction with flights, plans, drones, docks, or pilots.
+# flight_id is stored as NULL; capture_method is always '360_camera'.
+# ---------------------------------------------------------------------------
+
+
+@bp.route("/floor-upload", methods=["POST"])
+@jwt_required
+def floor_upload_photo():
+    """Upload a single 360-camera photo for a floor plan waypoint.
+
+    Required form fields: project_id, waypoint_id, taken_at + file.
+    capture_method is hardcoded to '360_camera'; flight_id is NULL.
+    No flight or plan records are created or referenced.
+    """
+    if not supabase_client.client:
+        return jsonify({"error": "Database not configured"}), 500
+    if not r2_client.client:
+        config_msg = getattr(r2_client, "_config_error", None) or "Check R2 env vars."
+        return jsonify({"error": f"Storage not configured. {config_msg}"}), 500
+
+    user_id, error = _current_user_id_or_error()
+    if error:
+        payload, status = error
+        return jsonify(payload), status
+
+    project_id = (request.form.get("project_id") or "").strip()
+    waypoint_id = (request.form.get("waypoint_id") or "").strip() or None
+    taken_at = (request.form.get("taken_at") or "").strip() or None
+
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+
+    permission = require_role(project_id, MANAGE_PHOTO_ROLES, user_id=user_id)
+    if isinstance(permission, tuple):
+        payload, status = permission
+        return jsonify(payload), status
+
+    file_item = request.files.get("file")
+    if not file_item or not getattr(file_item, "filename", None):
+        return jsonify({"error": "Photo file is required"}), 400
+
+    mime_type = (getattr(file_item, "mimetype", "") or "").lower()
+    if mime_type not in ALLOWED_PHOTO_MIME_TYPES:
+        return jsonify({"error": "Invalid file type. JPEG or PNG required"}), 400
+
+    file_bytes = file_item.read()
+    if not file_bytes:
+        return jsonify({"error": "Uploaded file is empty"}), 400
+    if len(file_bytes) > MAX_PHOTO_UPLOAD_BYTES:
+        return jsonify({"error": "File too large (max 20MB)"}), 413
+
+    photo_id = str(uuid4())
+    safe_name = secure_filename(file_item.filename or "") or "photo"
+    extension = _photo_extension(safe_name, mime_type)
+    if extension not in ALLOWED_PHOTO_EXTENSIONS:
+        return jsonify({"error": "Invalid file type. JPEG or PNG required"}), 400
+
+    try:
+        r2_key = r2_client.upload_project_photo(
+            project_id, photo_id, file_bytes, extension, content_type=mime_type
+        )
+    except Exception as exc:
+        return jsonify({"error": f"Upload failed: {exc}"}), 500
+    if not r2_key:
+        return jsonify({"error": "Failed to upload to storage"}), 502
+
+    r2_url = r2_client.get_file_url(r2_key)
+
+    uploaded_keys: List[str] = [r2_key]
+    thumbnail_key = None
+    thumbnail_url = None
+    thumbnail = _generate_thumbnail_bytes(file_bytes, mime_type)
+    if thumbnail:
+        thumb_bytes, thumb_ext, thumb_mime = thumbnail
+        thumbnail_key = f"projects/{project_id}/photos/{photo_id}_thumb.{thumb_ext}"
+        try:
+            uploaded = r2_client.upload_bytes(
+                thumb_bytes, thumbnail_key, content_type=thumb_mime
+            )
+        except Exception:
+            uploaded = False
+        if uploaded:
+            thumbnail_url = r2_client.get_file_url(thumbnail_key)
+            uploaded_keys.append(thumbnail_key)
+        else:
+            thumbnail_key = None
+
+    # floor_id=NULL — floor plan photos are not part of any flight or mission plan
+    row = {
+        "photo_id": photo_id,
+        "flight_id": None,
+        "waypoint_id": waypoint_id,
+        "drone_alt": None,
+        "drone_lat": None,
+        "drone_lng": None,
+        "taken_at": taken_at,
+        "drone_heading": None,
+        "gimbal_position": None,
+        "capture_method": "360_camera",
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "r2_path": r2_key,
+        "r2_url": r2_url,
+        "thumbnail_r2_path": thumbnail_key,
+        "thumbnail_r2_url": thumbnail_url,
+        "active_photo": True,
+    }
+
+    try:
+        resp = supabase_client.client.table("photos").insert(row).execute()
+    except Exception as exc:
+        for key in uploaded_keys:
+            r2_client.delete_file(key)
+        return jsonify({"error": f"Failed to create photo record: {exc}"}), 500
+
+    if not resp.data:
+        for key in uploaded_keys:
+            r2_client.delete_file(key)
+        return jsonify({"error": "Could not persist photo metadata"}), 502
+
+    return jsonify({"photo": resp.data[0]}), 201

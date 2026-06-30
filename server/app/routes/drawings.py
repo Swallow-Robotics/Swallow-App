@@ -85,6 +85,7 @@ def _serialize_drawing(record, include_control_points=False):
         "uploaded_by": record.get("uploaded_by"),
         "uploaded_at": record.get("uploaded_at"),
         "drawing_name": record.get("drawing_name"),
+        "drawing_type": record.get("drawing_type") or "site_plan",
         "file_type": record.get("file_type"),
         "file_size": record.get("file_size"),
         "r2_path": r2_path,
@@ -132,7 +133,10 @@ def list_drawings():
     if isinstance(permission, tuple):
         return jsonify(permission[0]), permission[1]
 
-    drawings = drawing_service.list_drawings_by_project(project_id)
+    drawing_type = (request.args.get("drawing_type") or "").strip() or None
+    drawings = drawing_service.list_drawings_by_project(
+        project_id, drawing_type=drawing_type
+    )
     return jsonify(
         {"drawings": [_serialize_drawing(d) for d in drawings]}
     ), 200
@@ -200,10 +204,13 @@ def save_drawings():
     for entry in entries:
         name = (entry.get("drawing_name") or "").strip()
         order = entry.get("order")
+        dtype = (entry.get("drawing_type") or "").strip() or None
         if not name:
             return _drawing_error("Each drawing requires a name.")
         if order is None or not isinstance(order, int) or order < 1:
             return _drawing_error("Each drawing requires a valid order.")
+        if dtype and dtype not in ("site_plan", "floor_plan"):
+            return _drawing_error("drawing_type must be site_plan or floor_plan.")
 
     existing = drawing_service.list_drawings_by_project(project_id)
     existing_ids = {d["drawing_id"] for d in existing}
@@ -220,6 +227,7 @@ def save_drawings():
         name = entry.get("drawing_name", "").strip()
         order = entry.get("order")
         file_key = entry.get("file_key")
+        drawing_type = (entry.get("drawing_type") or "").strip() or None
 
         if drawing_id and drawing_id in existing_ids:
             record = drawing_service.update_drawing_metadata(
@@ -289,6 +297,7 @@ def save_drawings():
             width=image_width,
             height=image_height,
             drawing_id=new_id,
+            drawing_type=drawing_type,
         )
         if not record:
             r2_client.delete_file(r2_key)

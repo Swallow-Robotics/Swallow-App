@@ -9,9 +9,18 @@ import {
   useLocation,
   useSearchParams,
 } from 'react-router-dom';
+
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './App.css';
-import { AuthProvider, useAuth, MavlinkTelemetryProvider } from './context';
+import {
+  AuthProvider,
+  useAuth,
+  MavlinkTelemetryProvider,
+  ViewModeProvider,
+  useViewMode,
+  SITE_PLAN,
+  FLOOR_PLAN,
+} from './context';
 import AuthGuard from './components/auth/AuthGuard';
 import ProfileMenu from './components/auth/ProfileMenu';
 import PageLayout from './components/layout/PageLayout';
@@ -92,11 +101,22 @@ const Header = () => {
   );
 };
 
+// Routing-level guard: redirects /view/map to /view/drawings in Floor Plan mode.
+// Prevents direct URL access to the map while Floor Plan mode is active.
+const MapGuard = ({ children }) => {
+  const { isFloorPlan } = useViewMode();
+  if (isFloorPlan) {
+    return <Navigate to="/view/drawings" replace />;
+  }
+  return children;
+};
+
 const navLinkClass = ({ isActive }) =>
   isActive ? 'App-subnav__link App-subnav__link--active' : 'App-subnav__link';
 
 const ViewNav = () => {
   const { user, activeProject } = useAuth();
+  const { viewMode, setViewMode } = useViewMode();
   const hasActiveProject = !!(activeProject?.id || activeProject);
   const projectName =
     typeof activeProject === 'string' ? '' : activeProject?.project_name || '';
@@ -106,6 +126,7 @@ const ViewNav = () => {
   return (
     <nav className="App-subnav" aria-label="Primary navigation">
       <div className="App-subnav__inner">
+        {/* Left: page links */}
         <NavLink to="/view/projects" className={navLinkClass}>
           Projects
         </NavLink>
@@ -119,14 +140,36 @@ const ViewNav = () => {
             Photos
           </NavLink>
         )}
-        <NavLink to="/view/map" className={navLinkClass}>
-          Map
-        </NavLink>
+        {viewMode === SITE_PLAN && (
+          <NavLink to="/view/map" className={navLinkClass}>
+            Map
+          </NavLink>
+        )}
         {hasActiveProject && (
           <NavLink to="/view/drawings" className={navLinkClass}>
             Drawings
           </NavLink>
         )}
+
+        {/* Centre: absolutely positioned so it is always at 50% of the banner */}
+        <div className="App-subnav__mode-toggle" role="group" aria-label="View mode">
+          <button
+            type="button"
+            className={`App-subnav__mode-btn${viewMode === SITE_PLAN ? ' App-subnav__mode-btn--active' : ''}`}
+            onClick={() => setViewMode(SITE_PLAN)}
+          >
+            Site
+          </button>
+          <button
+            type="button"
+            className={`App-subnav__mode-btn${viewMode === FLOOR_PLAN ? ' App-subnav__mode-btn--active' : ''}`}
+            onClick={() => setViewMode(FLOOR_PLAN)}
+          >
+            Floor
+          </button>
+        </div>
+
+        {/* Right: active project name */}
         {projectName ? (
           <div className="App-subnav__project" title={projectName}>
             <span className="App-subnav__projectLabel">Project</span>
@@ -218,7 +261,9 @@ export function AppRoutes() {
               path="map"
               element={
                 <AuthGuard>
-                  <MapPage />
+                  <MapGuard>
+                    <MapPage />
+                  </MapGuard>
                 </AuthGuard>
               }
             />
@@ -360,11 +405,13 @@ export function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <MavlinkTelemetryProvider>
-        <Router basename={process.env.PUBLIC_URL || '/'}>
-          <AppRoutes />
-        </Router>
-      </MavlinkTelemetryProvider>
+      <ViewModeProvider>
+        <MavlinkTelemetryProvider>
+          <Router basename={process.env.PUBLIC_URL || '/'}>
+            <AppRoutes />
+          </Router>
+        </MavlinkTelemetryProvider>
+      </ViewModeProvider>
     </AuthProvider>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context';
+import { useViewMode } from '../context/ViewModeContext';
 import apiClient from '../services/api';
 import { dateKeyFromIso, dateLabelFromKey } from '../utils/dateTime';
 import UploadPhotosModal from '../components/photo/UploadPhotosModal';
@@ -25,6 +26,7 @@ const FolderIcon = () => (
 
 const PhotosPage = () => {
   const { activeProject, roleForActiveProject } = useAuth();
+  const { isSitePlan, isFloorPlan } = useViewMode();
   const navigate = useNavigate();
 
   const activeProjectId =
@@ -47,6 +49,8 @@ const PhotosPage = () => {
     photoRole === 'administrator' ||
     photoRole === 'editor';
 
+  const captureMethodFilter = isSitePlan ? 'drone' : '360_camera';
+
   const fetchPhotos = useCallback(async () => {
     if (!activeProjectId) {
       setPhotos([]);
@@ -56,7 +60,7 @@ const PhotosPage = () => {
     setError('');
     try {
       const resp = await apiClient.get(
-        `/v1/photos/project-photos?project_id=${activeProjectId}`,
+        `/v1/photos/project-photos?project_id=${activeProjectId}&capture_method=${captureMethodFilter}`,
       );
       setPhotos(resp?.photos || []);
     } catch (err) {
@@ -68,7 +72,7 @@ const PhotosPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeProjectId]);
+  }, [activeProjectId, captureMethodFilter]);
 
   useEffect(() => {
     fetchPhotos();
@@ -230,6 +234,7 @@ const PhotosPage = () => {
       <UploadPhotosModal
         open={isUploadOpen}
         projectId={activeProjectId}
+        mode={isSitePlan ? 'site_plan' : 'floor_plan'}
         onClose={() => setIsUploadOpen(false)}
         onUploaded={fetchPhotos}
       />

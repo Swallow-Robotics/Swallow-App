@@ -153,7 +153,11 @@ const PhotoMapLive = () => {
   const satelliteHiddenLayersRef = useRef({});
   const satelliteStyledSymbolsRef = useRef({});
 
-  const { waypoints } = useActivePlanWaypoints(activeProjectId, refreshCounter);
+  const { waypoints } = useActivePlanWaypoints(
+    activeProjectId,
+    refreshCounter,
+    'drone',
+  );
 
   const activeProjectRow = useMemo(
     () => projects.find((p) => p.project_id === activeProjectId) || null,

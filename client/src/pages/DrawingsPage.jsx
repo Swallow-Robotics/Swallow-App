@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context';
+import { useViewMode } from '../context/ViewModeContext';
 import apiClient from '../services/api';
 import { useActivePlanWaypoints } from '../hooks/useActivePlanWaypoints';
 import DrawingSwitcher from '../components/drawings/DrawingSwitcher';
@@ -15,9 +16,66 @@ import {
   waypointsToPixelPositions,
 } from '../utils/drawingAffineTransform';
 
+// ---------------------------------------------------------------------------
+// Floor plan waypoint name prompt (inline mini-modal)
+// ---------------------------------------------------------------------------
+const WaypointNamePrompt = ({ onConfirm, onCancel }) => {
+  const [name, setName] = useState('');
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="modal-overlay"
+      onClick={onCancel}
+    >
+      <div
+        className="modal-body"
+        style={{ maxWidth: 320, width: '96%', position: 'relative' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <h3 className="modal-header">New Waypoint</h3>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Waypoint name (optional)"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') onConfirm(name.trim() || null);
+            if (e.key === 'Escape') onCancel();
+          }}
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          style={{ width: '100%', marginBottom: 'var(--space-md)' }}
+        />
+        <div className="modal-footer">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => onConfirm(name.trim() || null)}
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 const DrawingsPage = () => {
   const navigate = useNavigate();
   const { activeProject, roleForActiveProject, projects } = useAuth();
+  const { isSitePlan, isFloorPlan } = useViewMode();
 
   const projectId =
     (typeof activeProject === 'string'
@@ -51,18 +109,29 @@ const DrawingsPage = () => {
     return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
   }, [activeProjectRow]);
 
+  // Shared drawing list state
   const [drawings, setDrawings] = useState([]);
   const [activeDrawingId, setActiveDrawingId] = useState(null);
   const [activeDrawingDetail, setActiveDrawingDetail] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [drawingsModalOpen, setDrawingsModalOpen] = useState(false);
-  const [alignModalOpen, setAlignModalOpen] = useState(false);
-  const [selectedWaypoint, setSelectedWaypoint] = useState(null);
-  const [editLocationOpen, setEditLocationOpen] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
 
-  const { waypoints } = useActivePlanWaypoints(projectId, refreshCounter);
+  // Site plan only
+  const [alignModalOpen, setAlignModalOpen] = useState(false);
+  const [editLocationOpen, setEditLocationOpen] = useState(false);
+
+  // Shared waypoint photo modal
+  const [selectedWaypoint, setSelectedWaypoint] = useState(null);
+
+  // Floor plan only
+  const [isAddWaypointMode, setIsAddWaypointMode] = useState(false);
+  const [pendingWaypointPixel, setPendingWaypointPixel] = useState(null);
+  const [floorWaypoints, setFloorWaypoints] = useState([]);
+  const [isLoadingWaypoints, setIsLoadingWaypoints] = useState(false);
+
+  const drawingType = isSitePlan ? 'site_plan' : 'floor_plan';
 
   const orderedDrawings = useMemo(
     () =>
@@ -79,15 +148,22 @@ const DrawingsPage = () => {
     return orderedDrawings.find(d => d.drawing_id === activeDrawingId) || null;
   }, [activeDrawingDetail, activeDrawingId, orderedDrawings]);
 
+  // ---- Site plan: waypoints from active plan (drone photos only) ----
+  const { waypoints: sitePlanWaypoints } = useActivePlanWaypoints(
+    isSitePlan ? projectId : null,
+    refreshCounter,
+    'drone',
+  );
+
   const aligned = activeDrawing && isDrawingAligned(activeDrawing);
 
-  const waypointMarkers = useMemo(() => {
-    if (!aligned) return [];
-    return waypointsToPixelPositions(activeDrawing, waypoints);
-  }, [activeDrawing, aligned, waypoints]);
+  const sitePlanWaypointMarkers = useMemo(() => {
+    if (!isSitePlan || !aligned) return [];
+    return waypointsToPixelPositions(activeDrawing, sitePlanWaypoints);
+  }, [isSitePlan, activeDrawing, aligned, sitePlanWaypoints]);
 
   const projectMarker = useMemo(() => {
-    if (!aligned || !projectCenter) return null;
+    if (!isSitePlan || !aligned || !projectCenter) return null;
     const pos = geoToPixel(
       activeDrawing,
       projectCenter.lat,
@@ -99,14 +175,49 @@ const DrawingsPage = () => {
       pixelY: pos.y,
       name: activeProjectRow?.project_name || 'Project location',
     };
-  }, [activeDrawing, aligned, projectCenter, activeProjectRow]);
+  }, [isSitePlan, activeDrawing, aligned, projectCenter, activeProjectRow]);
 
+  // ---- Floor plan: waypoints from /api/v1/waypoints ----
+  const fetchFloorWaypoints = useCallback(async () => {
+    if (!projectId || !activeDrawingId || isFloorPlan === false) return;
+    setIsLoadingWaypoints(true);
+    try {
+      const resp = await apiClient.get(
+        `/v1/waypoints?project_id=${projectId}&drawing_id=${activeDrawingId}`,
+      );
+      setFloorWaypoints(resp?.waypoints || []);
+    } catch {
+      setFloorWaypoints([]);
+    } finally {
+      setIsLoadingWaypoints(false);
+    }
+  }, [projectId, activeDrawingId, isFloorPlan]);
+
+  useEffect(() => {
+    if (isFloorPlan) fetchFloorWaypoints();
+  }, [isFloorPlan, fetchFloorWaypoints]);
+
+  const floorWaypointMarkers = useMemo(() => {
+    if (!isFloorPlan) return [];
+    return floorWaypoints
+      .filter(
+        wp =>
+          wp.drawing_id === activeDrawingId &&
+          wp.pixel_x != null &&
+          wp.pixel_y != null,
+      )
+      .map(wp => ({ ...wp, pixelX: wp.pixel_x, pixelY: wp.pixel_y }));
+  }, [isFloorPlan, floorWaypoints, activeDrawingId]);
+
+  // ---- Fetch drawings ----
   const fetchDrawings = useCallback(async () => {
     if (!projectId) return;
     setIsLoading(true);
     setError('');
     try {
-      const resp = await apiClient.get(`/v1/drawings?project_id=${projectId}`);
+      const resp = await apiClient.get(
+        `/v1/drawings?project_id=${projectId}&drawing_type=${drawingType}`,
+      );
       const list = resp?.drawings || [];
       setDrawings(list);
       if (list.length) {
@@ -130,7 +241,7 @@ const DrawingsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, drawingType]);
 
   const fetchDrawingDetail = useCallback(async drawingId => {
     if (!drawingId) {
@@ -144,7 +255,9 @@ const DrawingsPage = () => {
         return;
       } catch {
         if (attempt < 2) {
-          await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+          await new Promise(resolve =>
+            setTimeout(resolve, 250 * (attempt + 1)),
+          );
         }
       }
     }
@@ -153,11 +266,18 @@ const DrawingsPage = () => {
 
   useEffect(() => {
     fetchDrawings();
+    // Reset mode-specific state when mode changes
+    setIsAddWaypointMode(false);
+    setPendingWaypointPixel(null);
   }, [fetchDrawings]);
 
   useEffect(() => {
-    fetchDrawingDetail(activeDrawingId);
-  }, [activeDrawingId, fetchDrawingDetail]);
+    if (isSitePlan) fetchDrawingDetail(activeDrawingId);
+  }, [isSitePlan, activeDrawingId, fetchDrawingDetail]);
+
+  useEffect(() => {
+    if (isFloorPlan && activeDrawingId) fetchFloorWaypoints();
+  }, [isFloorPlan, activeDrawingId, fetchFloorWaypoints]);
 
   const handleDrawingsSaved = list => {
     setDrawings(list);
@@ -181,6 +301,48 @@ const DrawingsPage = () => {
     setRefreshCounter(c => c + 1);
   }, []);
 
+  // ---- Floor plan: canvas click → create waypoint ----
+  const handleCanvasClick = useCallback(
+    pixel => {
+      if (!isFloorPlan || !isAddWaypointMode || !activeDrawingId) return;
+      setPendingWaypointPixel(pixel);
+    },
+    [isFloorPlan, isAddWaypointMode, activeDrawingId],
+  );
+
+  const handleCreateWaypoint = useCallback(
+    async waypointName => {
+      if (!pendingWaypointPixel || !projectId || !activeDrawingId) return;
+      setPendingWaypointPixel(null);
+      try {
+        await apiClient.post('/v1/waypoints', {
+          project_id: projectId,
+          drawing_id: activeDrawingId,
+          pixel_x: pendingWaypointPixel.x,
+          pixel_y: pendingWaypointPixel.y,
+          waypoint_name: waypointName,
+        });
+        fetchFloorWaypoints();
+      } catch (err) {
+        setError(err?.payload?.message || err?.message || 'Failed to create waypoint.');
+      }
+    },
+    [pendingWaypointPixel, projectId, activeDrawingId, fetchFloorWaypoints],
+  );
+
+  const handleDeleteFloorWaypoint = useCallback(
+    async waypointId => {
+      try {
+        await apiClient.delete(`/v1/waypoints/${waypointId}`);
+        fetchFloorWaypoints();
+      } catch (err) {
+        setError(err?.payload?.message || err?.message || 'Failed to delete waypoint.');
+      }
+    },
+    [fetchFloorWaypoints],
+  );
+
+  // ---- Empty / loading / error states ----
   if (!projectId) {
     return (
       <div className="drawings-page drawings-page--empty">
@@ -226,6 +388,7 @@ const DrawingsPage = () => {
           open={drawingsModalOpen}
           projectId={projectId}
           drawings={drawings}
+          drawingType={drawingType}
           onClose={() => setDrawingsModalOpen(false)}
           onSaved={handleDrawingsSaved}
         />
@@ -233,8 +396,20 @@ const DrawingsPage = () => {
     );
   }
 
+  // Active markers differ by mode
+  const waypointMarkers = isSitePlan
+    ? sitePlanWaypointMarkers
+    : floorWaypointMarkers;
+
   return (
     <div className="drawings-page">
+      {pendingWaypointPixel ? (
+        <WaypointNamePrompt
+          onConfirm={handleCreateWaypoint}
+          onCancel={() => setPendingWaypointPixel(null)}
+        />
+      ) : null}
+
       <div className="drawings-page__canvas-wrapper">
         {activeDrawing?.r2_url ? (
           <DrawingCanvas
@@ -242,16 +417,21 @@ const DrawingsPage = () => {
             alt={activeDrawing.drawing_name || 'Drawing'}
             width={activeDrawing.width}
             height={activeDrawing.height}
-            waypointMarkers={waypointMarkers}
-            projectMarker={projectMarker}
-            onWaypointClick={setSelectedWaypoint}
+            waypointMarkers={isSitePlan ? waypointMarkers : (isLoadingWaypoints ? [] : floorWaypointMarkers)}
+            projectMarker={isSitePlan ? projectMarker : null}
+            onWaypointClick={wp => setSelectedWaypoint(wp)}
             onProjectMarkerClick={
-              canManage ? () => setEditLocationOpen(true) : undefined
+              isSitePlan && canManage
+                ? () => setEditLocationOpen(true)
+                : undefined
+            }
+            onImageClick={
+              isFloorPlan && isAddWaypointMode ? handleCanvasClick : undefined
             }
           />
         ) : null}
 
-        {!aligned ? (
+        {isSitePlan && !aligned ? (
           <p className="drawings-page__align-hint">
             Align this drawing to view waypoints.
           </p>
@@ -272,14 +452,28 @@ const DrawingsPage = () => {
               >
                 Drawings
               </button>
-              <button
-                type="button"
-                className="btn-format-1 drawings-page__tool-btn"
-                onClick={() => setAlignModalOpen(true)}
-                disabled={!activeDrawing}
-              >
-                Align Drawing
-              </button>
+              {isSitePlan ? (
+                <button
+                  type="button"
+                  className="btn-format-1 drawings-page__tool-btn"
+                  onClick={() => setAlignModalOpen(true)}
+                  disabled={!activeDrawing}
+                >
+                  Align Drawing
+                </button>
+              ) : null}
+              {isFloorPlan ? (
+                <button
+                  type="button"
+                  className={`btn-format-1 drawings-page__tool-btn${isAddWaypointMode ? ' btn-format-1--active' : ''}`}
+                  onClick={() => {
+                    setIsAddWaypointMode(prev => !prev);
+                    setPendingWaypointPixel(null);
+                  }}
+                >
+                  {isAddWaypointMode ? 'Done Adding' : 'Add Waypoint'}
+                </button>
+              ) : null}
             </>
           ) : null}
         </div>
@@ -289,17 +483,37 @@ const DrawingsPage = () => {
         open={drawingsModalOpen}
         projectId={projectId}
         drawings={drawings}
+        drawingType={drawingType}
         onClose={() => setDrawingsModalOpen(false)}
         onSaved={handleDrawingsSaved}
       />
 
-      <AlignDrawingModal
-        open={alignModalOpen}
-        drawing={activeDrawingDetail || activeDrawing}
-        projectCenter={projectCenter}
-        onClose={() => setAlignModalOpen(false)}
-        onSaved={handleAlignmentSaved}
-      />
+      {isSitePlan ? (
+        <>
+          <AlignDrawingModal
+            open={alignModalOpen}
+            drawing={activeDrawingDetail || activeDrawing}
+            projectCenter={projectCenter}
+            onClose={() => setAlignModalOpen(false)}
+            onSaved={handleAlignmentSaved}
+          />
+          <EditLocationModal
+            open={editLocationOpen}
+            onClose={() => setEditLocationOpen(false)}
+            onSave={handleLocationSave}
+            projectId={projectId}
+            projectMarker={
+              projectCenter
+                ? {
+                    latitude: projectCenter.lat,
+                    longitude: projectCenter.lng,
+                  }
+                : null
+            }
+            mapInstance={null}
+          />
+        </>
+      ) : null}
 
       <WaypointPhotosModal
         open={!!selectedWaypoint}
@@ -309,22 +523,14 @@ const DrawingsPage = () => {
           if (!photo?.photo_id) return;
           navigate(`/view/photos/${photo.photo_id}`);
         }}
-      />
-
-      <EditLocationModal
-        open={editLocationOpen}
-        onClose={() => setEditLocationOpen(false)}
-        onSave={handleLocationSave}
-        projectId={projectId}
-        projectMarker={
-          projectCenter
-            ? {
-                latitude: projectCenter.lat,
-                longitude: projectCenter.lng,
+        onDeleteWaypoint={
+          isFloorPlan && canManage
+            ? wp => {
+                setSelectedWaypoint(null);
+                handleDeleteFloorWaypoint(wp.waypoint_id);
               }
-            : null
+            : undefined
         }
-        mapInstance={null}
       />
     </div>
   );

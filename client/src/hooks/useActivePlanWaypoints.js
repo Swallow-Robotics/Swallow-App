@@ -24,10 +24,17 @@ const toNumber = (value) => {
 };
 
 /**
+ * @param {string|null} projectId
+ * @param {number} refreshCounter
+ * @param {string|null} captureMethod - optional capture_method filter for photos
  * @returns {{ waypoints: Array, isLoading: boolean, error: string }}
  * Each waypoint: { waypoint_id, waypoint_name, lat, lng, photos: [...] }
  */
-export function useActivePlanWaypoints(projectId, refreshCounter = 0) {
+export function useActivePlanWaypoints(
+  projectId,
+  refreshCounter = 0,
+  captureMethod = null,
+) {
   const [waypoints, setWaypoints] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -59,9 +66,12 @@ export function useActivePlanWaypoints(projectId, refreshCounter = 0) {
 
     const run = async () => {
       try {
+        const photosUrl = captureMethod
+          ? `/v1/photos/project-photos?project_id=${projectId}&capture_method=${captureMethod}`
+          : `/v1/photos/project-photos?project_id=${projectId}`;
         const [plansResp, photosResp] = await Promise.all([
           fetchPlansWithRetry(),
-          apiClient.get(`/v1/photos/project-photos?project_id=${projectId}`),
+          apiClient.get(photosUrl),
         ]);
         if (cancelled) return;
 
@@ -111,7 +121,7 @@ export function useActivePlanWaypoints(projectId, refreshCounter = 0) {
     return () => {
       cancelled = true;
     };
-  }, [projectId, refreshCounter]);
+  }, [projectId, refreshCounter, captureMethod]);
 
   return { waypoints, isLoading, error };
 }
