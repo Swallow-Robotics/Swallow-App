@@ -26,7 +26,7 @@ const FolderIcon = () => (
 
 const PhotosPage = () => {
   const { activeProject, roleForActiveProject } = useAuth();
-  const { isSitePlan, isFloorPlan } = useViewMode();
+  const { isSitePlan } = useViewMode();
   const navigate = useNavigate();
 
   const activeProjectId =
