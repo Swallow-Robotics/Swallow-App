@@ -10,6 +10,7 @@ import AlignDrawingModal from '../components/drawings/AlignDrawingModal';
 import DrawingCanvas from '../components/drawings/DrawingCanvas';
 import WaypointPhotosModal from '../components/map/WaypointPhotosModal';
 import EditLocationModal from '../components/map/EditLocationModal';
+import UploadPhotosModal from '../components/photo/UploadPhotosModal';
 import {
   geoToPixel,
   isDrawingAligned,
@@ -70,6 +71,116 @@ const WaypointNamePrompt = ({ onConfirm, onCancel }) => {
 };
 
 // ---------------------------------------------------------------------------
+// Shared context menu container (positions at cursor, closes on outside click)
+// ---------------------------------------------------------------------------
+const FloatingMenu = ({ screenX, screenY, onClose, children }) => {
+  useEffect(() => {
+    const close = () => onClose();
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: screenY,
+        left: screenX,
+        zIndex: 1100,
+        background: 'var(--color-surface-primary)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--shadow-lg)',
+        minWidth: 160,
+        padding: 'var(--space-xs) 0',
+        overflow: 'hidden',
+      }}
+      onClick={e => e.stopPropagation()}
+    >
+      {children}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Right-click context menu for the drawing surface (Add Waypoint)
+// ---------------------------------------------------------------------------
+const DrawingContextMenu = ({ screenX, screenY, onAddWaypoint, onClose }) => (
+  <FloatingMenu screenX={screenX} screenY={screenY} onClose={onClose}>
+    <button type="button" className="btn-menu-item" onClick={onAddWaypoint}>
+      Add Waypoint
+    </button>
+  </FloatingMenu>
+);
+
+// ---------------------------------------------------------------------------
+// Right-click context menu for an existing waypoint
+// ---------------------------------------------------------------------------
+const WaypointContextMenu = ({
+  screenX,
+  screenY,
+  onAddPhoto,
+  onMove,
+  onDelete,
+  onClose,
+}) => (
+  <FloatingMenu screenX={screenX} screenY={screenY} onClose={onClose}>
+    <button type="button" className="btn-menu-item" onClick={onAddPhoto}>
+      Add Photo
+    </button>
+    <button type="button" className="btn-menu-item" onClick={onMove}>
+      Move
+    </button>
+    <button
+      type="button"
+      className="btn-menu-item btn-menu-item-destructive"
+      onClick={onDelete}
+    >
+      Delete
+    </button>
+  </FloatingMenu>
+);
+
+// ---------------------------------------------------------------------------
+// Delete confirmation dialog
+// ---------------------------------------------------------------------------
+const DeleteConfirmDialog = ({ waypoint, onConfirm, onCancel }) => (
+  <div
+    role="dialog"
+    aria-modal="true"
+    className="modal-overlay"
+    onClick={onCancel}
+  >
+    <div
+      className="modal-body"
+      style={{ maxWidth: 360, width: '96%' }}
+      onClick={e => e.stopPropagation()}
+    >
+      <h3 className="modal-header">Delete Waypoint</h3>
+      <p
+        style={{
+          margin: 'var(--space-sm) 0 var(--space-md)',
+          color: 'var(--color-text-secondary)',
+          fontSize: 'var(--font-size-sm)',
+        }}
+      >
+        Delete{' '}
+        <strong>{waypoint.waypoint_name || 'this waypoint'}</strong> and
+        soft-delete all its photos? This cannot be undone.
+      </p>
+      <div className="modal-footer">
+        <button type="button" className="btn-secondary" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="button" className="btn-critical" onClick={onConfirm}>
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 const DrawingsPage = () => {
@@ -128,6 +239,13 @@ const DrawingsPage = () => {
   // Floor plan only
   const [isAddWaypointMode, setIsAddWaypointMode] = useState(false);
   const [pendingWaypointPixel, setPendingWaypointPixel] = useState(null);
+  // contextMenu.kind: 'drawing' | 'waypoint'
+  const [contextMenu, setContextMenu] = useState(null);
+  const [movingWaypointId, setMovingWaypointId] = useState(null);
+  const [deleteWaypoint, setDeleteWaypoint] = useState(null);
+  const [uploadWaypointId, setUploadWaypointId] = useState(null);
+  const [uploadDrawingId, setUploadDrawingId] = useState(null);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [floorWaypoints, setFloorWaypoints] = useState([]);
   const [isLoadingWaypoints, setIsLoadingWaypoints] = useState(false);
 
@@ -206,41 +324,55 @@ const DrawingsPage = () => {
           wp.pixel_x != null &&
           wp.pixel_y != null,
       )
-      .map(wp => ({ ...wp, pixelX: wp.pixel_x, pixelY: wp.pixel_y }));
-  }, [isFloorPlan, floorWaypoints, activeDrawingId]);
+      .map(wp => ({
+        ...wp,
+        pixelX: wp.pixel_x,
+        pixelY: wp.pixel_y,
+        isMoving: wp.waypoint_id === movingWaypointId,
+      }));
+  }, [isFloorPlan, floorWaypoints, activeDrawingId, movingWaypointId]);
 
   // ---- Fetch drawings ----
   const fetchDrawings = useCallback(async () => {
     if (!projectId) return;
     setIsLoading(true);
     setError('');
-    try {
-      const resp = await apiClient.get(
-        `/v1/drawings?project_id=${projectId}&drawing_type=${drawingType}`,
-      );
-      const list = resp?.drawings || [];
-      setDrawings(list);
-      if (list.length) {
-        const sorted = [...list].sort(
-          (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0),
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const resp = await apiClient.get(
+          `/v1/drawings?project_id=${projectId}&drawing_type=${drawingType}`,
         );
-        setActiveDrawingId(prev =>
-          prev && sorted.some(d => d.drawing_id === prev)
-            ? prev
-            : sorted[0].drawing_id,
+        const list = resp?.drawings || [];
+        setDrawings(list);
+        if (list.length) {
+          const sorted = [...list].sort(
+            (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0),
+          );
+          setActiveDrawingId(prev =>
+            prev && sorted.some(d => d.drawing_id === prev)
+              ? prev
+              : sorted[0].drawing_id,
+          );
+        } else {
+          setActiveDrawingId(null);
+          setActiveDrawingDetail(null);
+        }
+        setIsLoading(false);
+        return;
+      } catch (err) {
+        if (attempt < 2) {
+          await new Promise(resolve =>
+            setTimeout(resolve, 250 * (attempt + 1)),
+          );
+          continue;
+        }
+        setDrawings([]);
+        setError(
+          err?.payload?.message || err?.message || 'Unable to load drawings.',
         );
-      } else {
-        setActiveDrawingId(null);
-        setActiveDrawingDetail(null);
       }
-    } catch (err) {
-      setDrawings([]);
-      setError(
-        err?.payload?.message || err?.message || 'Unable to load drawings.',
-      );
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }, [projectId, drawingType]);
 
   const fetchDrawingDetail = useCallback(async drawingId => {
@@ -266,9 +398,11 @@ const DrawingsPage = () => {
 
   useEffect(() => {
     fetchDrawings();
-    // Reset mode-specific state when mode changes
     setIsAddWaypointMode(false);
     setPendingWaypointPixel(null);
+    setContextMenu(null);
+    setMovingWaypointId(null);
+    setDeleteWaypoint(null);
   }, [fetchDrawings]);
 
   useEffect(() => {
@@ -301,46 +435,107 @@ const DrawingsPage = () => {
     setRefreshCounter(c => c + 1);
   }, []);
 
-  // ---- Floor plan: canvas click → create waypoint ----
+  // ---- Floor plan: canvas left-click (add mode or move mode) ----
   const handleCanvasClick = useCallback(
     pixel => {
-      if (!isFloorPlan || !isAddWaypointMode || !activeDrawingId) return;
-      setPendingWaypointPixel(pixel);
+      if (!isFloorPlan || !activeDrawingId) return;
+      if (movingWaypointId) {
+        // Place the waypoint being moved at the new location
+        const wpId = movingWaypointId;
+        setMovingWaypointId(null);
+        // Optimistic local update
+        setFloorWaypoints(prev =>
+          prev.map(wp =>
+            wp.waypoint_id === wpId
+              ? { ...wp, pixel_x: pixel.pixel_x, pixel_y: pixel.pixel_y }
+              : wp,
+          ),
+        );
+        apiClient
+          .patch(`/v1/waypoints/${wpId}`, {
+            pixel_x: pixel.pixel_x,
+            pixel_y: pixel.pixel_y,
+          })
+          .catch(err => {
+            setError(
+              err?.payload?.message || err?.message || 'Failed to move waypoint.',
+            );
+            fetchFloorWaypoints();
+          });
+        return;
+      }
+      if (isAddWaypointMode) {
+        setContextMenu(null);
+        setPendingWaypointPixel(pixel);
+      }
     },
-    [isFloorPlan, isAddWaypointMode, activeDrawingId],
+    [isFloorPlan, activeDrawingId, movingWaypointId, isAddWaypointMode, fetchFloorWaypoints],
   );
 
+  // ---- Floor plan: right-click on drawing surface → "Add Waypoint" ----
+  const handleCanvasContextMenu = useCallback(
+    ({ pixel, screenX, screenY }) => {
+      if (!isFloorPlan || !activeDrawingId || !canManage) return;
+      setContextMenu({ kind: 'drawing', pixel, screenX, screenY });
+    },
+    [isFloorPlan, activeDrawingId, canManage],
+  );
+
+  const handleContextMenuAddWaypoint = useCallback(() => {
+    if (!contextMenu) return;
+    setPendingWaypointPixel(contextMenu.pixel);
+    setContextMenu(null);
+    setIsAddWaypointMode(false);
+  }, [contextMenu]);
+
+  // ---- Floor plan: right-click on waypoint marker ----
+  const handleWaypointContextMenu = useCallback(
+    (marker, screenX, screenY) => {
+      if (!isFloorPlan || !canManage) return;
+      setContextMenu({ kind: 'waypoint', waypoint: marker, screenX, screenY });
+    },
+    [isFloorPlan, canManage],
+  );
+
+  // ---- Floor plan: create new waypoint after name prompt ----
   const handleCreateWaypoint = useCallback(
     async waypointName => {
       if (!pendingWaypointPixel || !projectId || !activeDrawingId) return;
+      const px = pendingWaypointPixel.pixel_x;
+      const py = pendingWaypointPixel.pixel_y;
       setPendingWaypointPixel(null);
       try {
         await apiClient.post('/v1/waypoints', {
           project_id: projectId,
           drawing_id: activeDrawingId,
-          pixel_x: pendingWaypointPixel.x,
-          pixel_y: pendingWaypointPixel.y,
+          pixel_x: px,
+          pixel_y: py,
           waypoint_name: waypointName,
         });
         fetchFloorWaypoints();
       } catch (err) {
-        setError(err?.payload?.message || err?.message || 'Failed to create waypoint.');
+        setError(
+          err?.payload?.message || err?.message || 'Failed to create waypoint.',
+        );
       }
     },
     [pendingWaypointPixel, projectId, activeDrawingId, fetchFloorWaypoints],
   );
 
-  const handleDeleteFloorWaypoint = useCallback(
-    async waypointId => {
-      try {
-        await apiClient.delete(`/v1/waypoints/${waypointId}`);
-        fetchFloorWaypoints();
-      } catch (err) {
-        setError(err?.payload?.message || err?.message || 'Failed to delete waypoint.');
-      }
-    },
-    [fetchFloorWaypoints],
-  );
+  // ---- Floor plan: delete after confirmation ----
+  const handleDeleteWaypointConfirm = useCallback(async () => {
+    if (!deleteWaypoint) return;
+    const waypointId = deleteWaypoint.waypoint_id;
+    setDeleteWaypoint(null);
+    try {
+      await apiClient.delete(`/v1/waypoints/${waypointId}`);
+      fetchFloorWaypoints();
+    } catch (err) {
+      setError(
+        err?.payload?.message || err?.message || 'Failed to delete waypoint.',
+      );
+    }
+  }, [deleteWaypoint, fetchFloorWaypoints]);
 
   // ---- Empty / loading / error states ----
   if (!projectId) {
@@ -410,6 +605,46 @@ const DrawingsPage = () => {
         />
       ) : null}
 
+      {deleteWaypoint ? (
+        <DeleteConfirmDialog
+          waypoint={deleteWaypoint}
+          onConfirm={handleDeleteWaypointConfirm}
+          onCancel={() => setDeleteWaypoint(null)}
+        />
+      ) : null}
+
+      {contextMenu?.kind === 'drawing' ? (
+        <DrawingContextMenu
+          screenX={contextMenu.screenX}
+          screenY={contextMenu.screenY}
+          onAddWaypoint={handleContextMenuAddWaypoint}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : null}
+
+      {contextMenu?.kind === 'waypoint' ? (
+        <WaypointContextMenu
+          screenX={contextMenu.screenX}
+          screenY={contextMenu.screenY}
+          onAddPhoto={() => {
+            const wp = contextMenu.waypoint;
+            setUploadWaypointId(wp.waypoint_id);
+            setUploadDrawingId(wp.drawing_id);
+            setUploadModalOpen(true);
+            setContextMenu(null);
+          }}
+          onMove={() => {
+            setMovingWaypointId(contextMenu.waypoint.waypoint_id);
+            setContextMenu(null);
+          }}
+          onDelete={() => {
+            setDeleteWaypoint(contextMenu.waypoint);
+            setContextMenu(null);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : null}
+
       <div className="drawings-page__canvas-wrapper">
         {activeDrawing?.r2_url ? (
           <DrawingCanvas
@@ -417,16 +652,30 @@ const DrawingsPage = () => {
             alt={activeDrawing.drawing_name || 'Drawing'}
             width={activeDrawing.width}
             height={activeDrawing.height}
-            waypointMarkers={isSitePlan ? waypointMarkers : (isLoadingWaypoints ? [] : floorWaypointMarkers)}
+            waypointMarkers={
+              isSitePlan
+                ? waypointMarkers
+                : isLoadingWaypoints
+                  ? []
+                  : floorWaypointMarkers
+            }
             projectMarker={isSitePlan ? projectMarker : null}
             onWaypointClick={wp => setSelectedWaypoint(wp)}
+            onWaypointContextMenu={
+              isFloorPlan && canManage ? handleWaypointContextMenu : undefined
+            }
             onProjectMarkerClick={
               isSitePlan && canManage
                 ? () => setEditLocationOpen(true)
                 : undefined
             }
             onImageClick={
-              isFloorPlan && isAddWaypointMode ? handleCanvasClick : undefined
+              isFloorPlan && (isAddWaypointMode || !!movingWaypointId)
+                ? handleCanvasClick
+                : undefined
+            }
+            onContextMenu={
+              isFloorPlan && canManage ? handleCanvasContextMenu : undefined
             }
           />
         ) : null}
@@ -434,6 +683,16 @@ const DrawingsPage = () => {
         {isSitePlan && !aligned ? (
           <p className="drawings-page__align-hint">
             Align this drawing to view waypoints.
+          </p>
+        ) : null}
+
+        {isFloorPlan && movingWaypointId ? (
+          <p className="drawings-page__align-hint">
+            Click anywhere on the drawing to move the waypoint.
+          </p>
+        ) : isFloorPlan && isAddWaypointMode ? (
+          <p className="drawings-page__align-hint">
+            Click anywhere on the drawing to place a waypoint.
           </p>
         ) : null}
 
@@ -465,13 +724,25 @@ const DrawingsPage = () => {
               {isFloorPlan ? (
                 <button
                   type="button"
-                  className={`btn-format-1 drawings-page__tool-btn${isAddWaypointMode ? ' btn-format-1--active' : ''}`}
+                  className={`btn-format-1 drawings-page__tool-btn${isAddWaypointMode || movingWaypointId ? ' btn-format-1--active' : ''}`}
                   onClick={() => {
-                    setIsAddWaypointMode(prev => !prev);
-                    setPendingWaypointPixel(null);
+                    if (movingWaypointId) {
+                      setMovingWaypointId(null);
+                    } else {
+                      setIsAddWaypointMode(prev => !prev);
+                      setPendingWaypointPixel(null);
+                    }
+                    setContextMenu(null);
                   }}
+                  title={
+                    movingWaypointId
+                      ? 'Cancel move'
+                      : isAddWaypointMode
+                        ? 'Exit add mode'
+                        : 'Enter add mode, then click drawing — or right-click drawing directly'
+                  }
                 >
-                  {isAddWaypointMode ? 'Done Adding' : 'Add Waypoint'}
+                  {movingWaypointId || isAddWaypointMode ? 'Cancel' : 'Add Waypoint'}
                 </button>
               ) : null}
             </>
@@ -523,14 +794,20 @@ const DrawingsPage = () => {
           if (!photo?.photo_id) return;
           navigate(`/view/photos/${photo.photo_id}`);
         }}
-        onDeleteWaypoint={
-          isFloorPlan && canManage
-            ? wp => {
-                setSelectedWaypoint(null);
-                handleDeleteFloorWaypoint(wp.waypoint_id);
-              }
-            : undefined
-        }
+      />
+
+      <UploadPhotosModal
+        open={uploadModalOpen}
+        projectId={projectId}
+        mode="floor_plan"
+        preselectedWaypointId={uploadWaypointId}
+        preselectedDrawingId={uploadDrawingId}
+        onClose={() => {
+          setUploadModalOpen(false);
+          setUploadWaypointId(null);
+          setUploadDrawingId(null);
+        }}
+        onUploaded={fetchFloorWaypoints}
       />
     </div>
   );

@@ -18,6 +18,7 @@ const DrawingPanZoomSurface = ({
   width,
   height,
   onImageClick,
+  onContextMenu,
   onImageDimensions,
   children,
   fixedOverlay,
@@ -165,6 +166,24 @@ const DrawingPanZoomSurface = ({
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
 
+  const handleContextMenu = useCallback(
+    e => {
+      if (!onContextMenu) return;
+      e.preventDefault();
+      const pixel = clientToImagePixel(
+        e.clientX,
+        e.clientY,
+        containerRef.current,
+        nativeW,
+        nativeH,
+        transformRef.current,
+        baseScaleRef.current,
+      );
+      if (pixel) onContextMenu({ pixel, screenX: e.clientX, screenY: e.clientY });
+    },
+    [onContextMenu, nativeW, nativeH],
+  );
+
   const handleImageLoad = e => {
     const img = e.currentTarget;
     if (img.naturalWidth > 0 && img.naturalHeight > 0) {
@@ -201,6 +220,7 @@ const DrawingPanZoomSurface = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
+      onContextMenu={handleContextMenu}
       style={{
         position: 'relative',
         overflow: 'hidden',

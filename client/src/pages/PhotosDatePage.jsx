@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context';
+import { useViewMode } from '../context/ViewModeContext';
 import apiClient from '../services/api';
 import { dateKeyFromIso } from '../utils/dateTime';
 import EditPhotoModal from '../components/photo/EditPhotoModal';
@@ -11,11 +12,14 @@ const PhotosDatePage = () => {
   const { date } = useParams();
   const navigate = useNavigate();
   const { activeProject, roleForActiveProject } = useAuth();
+  const { isSitePlan } = useViewMode();
 
   const activeProjectId =
     (typeof activeProject === 'string'
       ? activeProject
       : activeProject?.project_id) || null;
+
+  const captureMethodFilter = isSitePlan ? 'drone' : '360_camera';
 
   const [photos, setPhotos] = useState([]);
   const [error, setError] = useState('');
@@ -43,7 +47,7 @@ const PhotosDatePage = () => {
     setError('');
     try {
       const resp = await apiClient.get(
-        `/v1/photos/project-photos?project_id=${activeProjectId}`,
+        `/v1/photos/project-photos?project_id=${activeProjectId}&capture_method=${captureMethodFilter}`,
       );
       setPhotos(resp?.photos || []);
     } catch (err) {
@@ -51,7 +55,7 @@ const PhotosDatePage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeProjectId]);
+  }, [activeProjectId, captureMethodFilter]);
 
   useEffect(() => {
     fetchPhotos();

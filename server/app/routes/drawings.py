@@ -212,7 +212,19 @@ def save_drawings():
         if dtype and dtype not in ("site_plan", "floor_plan"):
             return _drawing_error("drawing_type must be site_plan or floor_plan.")
 
-    existing = drawing_service.list_drawings_by_project(project_id)
+    # Scope all operations to the drawing_type represented in this batch so
+    # that drawings belonging to the other type are never touched.
+    batch_drawing_type = next(
+        (
+            (e.get("drawing_type") or "").strip() or None
+            for e in entries
+            if (e.get("drawing_type") or "").strip()
+        ),
+        None,
+    )
+    existing = drawing_service.list_drawings_by_project(
+        project_id, drawing_type=batch_drawing_type
+    )
     existing_ids = {d["drawing_id"] for d in existing}
     submitted_ids = {
         e["drawing_id"] for e in entries if e.get("drawing_id")
@@ -305,7 +317,9 @@ def save_drawings():
 
         saved.append(record)
 
-    refreshed = drawing_service.list_drawings_by_project(project_id)
+    refreshed = drawing_service.list_drawings_by_project(
+        project_id, drawing_type=batch_drawing_type
+    )
     return jsonify(
         {"drawings": [_serialize_drawing(d) for d in refreshed]}
     ), 200

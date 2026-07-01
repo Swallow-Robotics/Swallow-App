@@ -715,6 +715,7 @@ def _serialize_flight_photo(
         "thumbnail_r2_url": resolved_thumb_url,
         "drone_heading": record.get("drone_heading"),
         "gimbal_position": record.get("gimbal_position"),
+        "capture_method": record.get("capture_method"),
         "waypoint_id": waypoint_id,
         "waypoint_name": wp.get("waypoint_name") if wp else None,
         "waypoint_action": wp.get("action") if wp else None,
@@ -801,7 +802,12 @@ def list_project_photos():
             )
             photos_floor = photo_resp.data or []
             return jsonify(
-                {"photos": [_serialize_photo(p, waypoint_meta_floor) for p in photos_floor]}
+                {
+                    "photos": [
+                        _serialize_flight_photo(p, waypoint_meta_floor)
+                        for p in photos_floor
+                    ]
+                }
             )
 
         # ----------------------------------------------------------------

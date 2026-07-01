@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context';
+import { useViewMode } from '../context/ViewModeContext';
 import apiClient from '../services/api';
 import PanZoomImage from '../components/photo/PanZoomImage';
 import PanoramaViewer from '../components/photo/PanoramaViewer';
@@ -17,11 +18,14 @@ const PhotoViewerPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { activeProject } = useAuth();
+  const { isSitePlan } = useViewMode();
 
   const activeProjectId =
     (typeof activeProject === 'string'
       ? activeProject
       : activeProject?.project_id || activeProject?.id) || null;
+
+  const captureMethodFilter = isSitePlan ? 'drone' : '360_camera';
 
   const [photos, setPhotos] = useState([]);
   const [error, setError] = useState('');
@@ -36,7 +40,9 @@ const PhotoViewerPage = () => {
     setIsLoading(true);
     setError('');
     apiClient
-      .get(`/v1/photos/project-photos?project_id=${activeProjectId}`)
+      .get(
+        `/v1/photos/project-photos?project_id=${activeProjectId}&capture_method=${captureMethodFilter}`,
+      )
       .then(resp => {
         if (!cancelled) setPhotos(resp?.photos || []);
       })
@@ -53,7 +59,7 @@ const PhotoViewerPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId]);
+  }, [activeProjectId, captureMethodFilter]);
 
   const current = useMemo(
     () => photos.find(p => p.photo_id === id) || null,
@@ -118,7 +124,8 @@ const PhotoViewerPage = () => {
         }}
       >
         {current?.r2_url ? (
-          current.waypoint_action === 'photo_360' ? (
+          current.waypoint_action === 'photo_360' ||
+          current.capture_method === '360_camera' ? (
             <PanoramaViewer
               key={current.photo_id}
               src={current.r2_url}

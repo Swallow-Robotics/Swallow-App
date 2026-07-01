@@ -241,6 +241,85 @@ def create_floor_waypoint():
         return jsonify({"error": str(exc)}), 500
 
 
+@bp.route("/<waypoint_id>", methods=["PATCH"])
+@jwt_required
+def update_floor_waypoint(waypoint_id):
+    """Update pixel_x/pixel_y and/or waypoint_name for a floor plan waypoint."""
+    try:
+        user_id = _require_auth()
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 401
+
+    if not supabase_client.client:
+        return jsonify({"error": "Database not configured"}), 500
+
+    try:
+        wp_resp = (
+            supabase_client.client.table("waypoints")
+            .select("waypoint_id, drawing_id, pixel_x, pixel_y, waypoint_name, sequence")
+            .eq("waypoint_id", waypoint_id)
+            .limit(1)
+            .execute()
+        )
+        if not wp_resp.data:
+            return jsonify({"error": "Waypoint not found"}), 404
+
+        wp = wp_resp.data[0]
+        if not wp.get("drawing_id"):
+            return jsonify({"error": "Not a floor plan waypoint"}), 400
+
+        project_id = _project_id_for_drawing(wp["drawing_id"])
+        if not project_id:
+            return jsonify({"error": "Associated drawing not found"}), 404
+
+        permission = require_role(project_id, MANAGE_ROLES, user_id=user_id)
+        if isinstance(permission, tuple):
+            payload, status = permission
+            return jsonify(payload), status
+
+        body = request.get_json(silent=True) or {}
+        updates: dict = {}
+
+        if "pixel_x" in body or "pixel_y" in body:
+            try:
+                updates["pixel_x"] = float(body["pixel_x"])
+                updates["pixel_y"] = float(body["pixel_y"])
+            except (KeyError, TypeError, ValueError):
+                return jsonify({"error": "pixel_x and pixel_y must both be provided as numbers"}), 400
+
+        if "waypoint_name" in body:
+            updates["waypoint_name"] = (body.get("waypoint_name") or "").strip() or None
+
+        if not updates:
+            return jsonify({"error": "No valid fields to update"}), 400
+
+        resp = (
+            supabase_client.client.table("waypoints")
+            .update(updates)
+            .eq("waypoint_id", waypoint_id)
+            .execute()
+        )
+        if not resp.data:
+            return jsonify({"error": "Failed to update waypoint"}), 500
+
+        updated = resp.data[0]
+        return jsonify(
+            {
+                "waypoint": {
+                    "waypoint_id": updated.get("waypoint_id"),
+                    "waypoint_name": updated.get("waypoint_name"),
+                    "drawing_id": updated.get("drawing_id"),
+                    "pixel_x": updated.get("pixel_x"),
+                    "pixel_y": updated.get("pixel_y"),
+                    "sequence": updated.get("sequence"),
+                }
+            }
+        )
+    except Exception as exc:
+        logger.exception("update_floor_waypoint error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @bp.route("/<waypoint_id>", methods=["DELETE"])
 @jwt_required
 def delete_floor_waypoint(waypoint_id):

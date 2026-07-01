@@ -57,9 +57,10 @@ export function ControlPointMarker({
   );
 }
 
-export function WaypointMarker({ marker, screenX, screenY, onClick }) {
+export function WaypointMarker({ marker, screenX, screenY, onClick, onContextMenu }) {
   const x = screenX ?? marker.pixelX;
   const y = screenY ?? marker.pixelY;
+  const isMoving = !!marker.isMoving;
   return (
     <button
       type="button"
@@ -68,12 +69,21 @@ export function WaypointMarker({ marker, screenX, screenY, onClick }) {
         e.stopPropagation();
         onClick?.(marker);
       }}
+      onContextMenu={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu?.(marker, e.clientX, e.clientY);
+      }}
       aria-label={marker.waypoint_name || 'Waypoint'}
       style={{
         ...markerStyle(x, y),
         width: 34,
         height: 44,
-        filter: 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))',
+        filter: isMoving
+          ? 'drop-shadow(0 0 8px var(--color-accent)) drop-shadow(0 2px 6px rgba(31,58,95,0.35))'
+          : 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))',
+        opacity: isMoving ? 0.7 : 1,
+        transition: 'filter 0.15s, opacity 0.15s',
       }}
     >
       <span

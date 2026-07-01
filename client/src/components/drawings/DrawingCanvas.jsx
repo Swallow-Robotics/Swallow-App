@@ -10,8 +10,10 @@ const DrawingCanvas = ({
   waypointMarkers,
   projectMarker,
   onWaypointClick,
+  onWaypointContextMenu,
   onProjectMarkerClick,
   onImageClick,
+  onContextMenu,
 }) => {
   const nativeW = Number(width) || 1;
   const nativeH = Number(height) || 1;
@@ -23,11 +25,11 @@ const DrawingCanvas = ({
       width={nativeW}
       height={nativeH}
       onImageClick={onImageClick}
+      onContextMenu={onContextMenu}
       style={{
         position: 'absolute',
         inset: 0,
         background: 'var(--color-charcoal-slate)',
-        cursor: 'grab',
       }}
       fixedOverlay={({ toScreen }) => (
         <>
@@ -53,6 +55,7 @@ const DrawingCanvas = ({
                 screenX={pos.x}
                 screenY={pos.y}
                 onClick={onWaypointClick}
+                onContextMenu={onWaypointContextMenu}
               />
             );
           })}

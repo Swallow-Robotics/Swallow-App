@@ -54,8 +54,17 @@ const isFloorRowComplete = row =>
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-const UploadPhotosModal = ({ open, projectId, mode, onClose, onUploaded }) => {
+const UploadPhotosModal = ({
+  open,
+  projectId,
+  mode,
+  onClose,
+  onUploaded,
+  preselectedWaypointId,
+  preselectedDrawingId,
+}) => {
   const isFloorPlan = mode === 'floor_plan';
+  const isSingleWaypoint = isFloorPlan && !!preselectedWaypointId && !!preselectedDrawingId;
 
   // Site plan state
   const [flights, setFlights] = useState([]);
@@ -76,21 +85,35 @@ const UploadPhotosModal = ({ open, projectId, mode, onClose, onUploaded }) => {
     if (!open || !projectId) return;
     setError('');
     if (isFloorPlan) {
-      setFloorRows([makeFloorGhostRow()]);
-      setFloorWaypoints([]);
-      setFloorDrawings([]);
-      // Fetch drawings and all floor waypoints for the project in parallel
-      Promise.all([
-        apiClient
-          .get(`/v1/drawings?project_id=${projectId}&drawing_type=floor_plan`)
-          .catch(() => null),
-        apiClient
-          .get(`/v1/waypoints?project_id=${projectId}`)
-          .catch(() => null),
-      ]).then(([drwResp, wpResp]) => {
-        setFloorDrawings(drwResp?.drawings || []);
-        setFloorWaypoints(wpResp?.waypoints || []);
-      });
+      if (isSingleWaypoint) {
+        // Pre-fill the single row and skip the full data fetch
+        setFloorRows([
+          {
+            ...makeFloorGhostRow(),
+            isGhost: false,
+            drawingId: preselectedDrawingId,
+            waypointId: preselectedWaypointId,
+          },
+        ]);
+        setFloorWaypoints([]);
+        setFloorDrawings([]);
+      } else {
+        setFloorRows([makeFloorGhostRow()]);
+        setFloorWaypoints([]);
+        setFloorDrawings([]);
+        // Fetch drawings and all floor waypoints for the project in parallel
+        Promise.all([
+          apiClient
+            .get(`/v1/drawings?project_id=${projectId}&drawing_type=floor_plan`)
+            .catch(() => null),
+          apiClient
+            .get(`/v1/waypoints?project_id=${projectId}`)
+            .catch(() => null),
+        ]).then(([drwResp, wpResp]) => {
+          setFloorDrawings(drwResp?.drawings || []);
+          setFloorWaypoints(wpResp?.waypoints || []);
+        });
+      }
     } else {
       setSelectedFlightId('');
       setSiteRows([makeSiteGhostRow()]);
@@ -294,6 +317,99 @@ const UploadPhotosModal = ({ open, projectId, mode, onClose, onUploaded }) => {
   // Render — floor plan mode
   // ---------------------------------------------------------------------------
   if (isFloorPlan) {
+    // Simplified single-photo upload when launched directly from a waypoint context menu
+    if (isSingleWaypoint) {
+      const row = floorRows[0] || makeFloorGhostRow();
+      return (
+        <div role="dialog" aria-modal="true" className="modal-overlay">
+          <div
+            className="modal-body"
+            style={{ maxWidth: 420, width: '96%', position: 'relative' }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                position: 'absolute',
+                top: 'var(--space-sm)',
+                right: 'var(--space-sm)',
+                background: 'none',
+                border: 'none',
+                fontSize: '1.2em',
+                cursor: 'pointer',
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1,
+              }}
+              aria-label="Close modal"
+            >
+              ✕
+            </button>
+
+            <h3 className="modal-header">Upload Photo</h3>
+
+            {error ? (
+              <p
+                style={{
+                  color: '#9B4A2F',
+                  margin: '0 0 var(--space-sm) 0',
+                  fontSize: '0.9em',
+                }}
+              >
+                {error}
+              </p>
+            ) : null}
+
+            <div className="modal-form">
+              <label className="form-label">
+                Photo File
+                <input
+                  ref={el => {
+                    fileInputs.current[row.localId] = el;
+                  }}
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  style={{ display: 'none' }}
+                  onChange={e => handleFloorFile(row.localId, e.target.files)}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary btn-choose-file"
+                  style={{ marginTop: 'var(--space-xs)' }}
+                  onClick={() => fileInputs.current[row.localId]?.click()}
+                >
+                  {row.fileName || 'Choose file'}
+                </button>
+              </label>
+
+              <label className="form-label">
+                Time
+                <div style={{ marginTop: 'var(--space-xs)' }}>
+                  <DateTimePicker
+                    value={row.takenAt}
+                    onChange={iso => updateFloorRow(row.localId, { takenAt: iso })}
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" onClick={onClose} className="btn-secondary">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleFloorSave}
+                className="btn-primary"
+                disabled={isSaving || !row.file || !row.takenAt}
+              >
+                {isSaving ? 'Saving…' : 'Upload'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div role="dialog" aria-modal="true" className="modal-overlay">
         <div
