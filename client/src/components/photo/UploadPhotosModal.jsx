@@ -128,7 +128,14 @@ const UploadPhotosModal = ({
         setPlans(planResp?.plans || []);
       });
     }
-  }, [open, projectId, isFloorPlan]);
+  }, [
+    open,
+    projectId,
+    isFloorPlan,
+    isSingleWaypoint,
+    preselectedDrawingId,
+    preselectedWaypointId,
+  ]);
 
   // Site plan: waypoints driven by selected flight's plan
   const sitePlanWaypoints = useMemo(() => {
