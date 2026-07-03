@@ -99,6 +99,116 @@
 }
 
 /* ===========================
+   APP HEADER RIGHT SECTION
+   =========================== */
+
+.App-header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+/* Static (non-link) logo variant for the view-only portal */
+.App-header__logoLink--static {
+  cursor: default;
+}
+
+.App-header__logoLink--static:hover,
+.App-header__logoLink--static:focus-visible {
+  opacity: 1;
+}
+
+/* ===========================
+   VIEW ONLY TOGGLE (header)
+   =========================== */
+
+.view-portal-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.view-portal-toggle__label {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+
+.view-portal-toggle__pills {
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  height: 26px;
+}
+
+.view-portal-toggle__btn {
+  padding: 0 10px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: rgba(255, 255, 255, 0.7);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  height: 100%;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+  white-space: nowrap;
+}
+
+.view-portal-toggle__btn + .view-portal-toggle__btn {
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.view-portal-toggle__btn:hover:not(.view-portal-toggle__btn--active) {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.view-portal-toggle__btn--active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ===========================
+   HEADER PROJECT CALLOUT
+   =========================== */
+
+.header-project-callout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 280px;
+  overflow: hidden;
+}
+
+.header-project-callout__label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.header-project-callout__name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===========================
    SECONDARY NAVIGATION BANNER
    =========================== */
 
@@ -913,7 +1023,7 @@
 }
 
 /* Primary submit button inside auth forms */
-.auth-form button[type='submit'] {
+.auth-form button[type="submit"] {
   width: 100%;
   margin-top: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
@@ -931,22 +1041,22 @@
     box-shadow 150ms ease;
 }
 
-.auth-form button[type='submit']:hover:not(:disabled) {
+.auth-form button[type="submit"]:hover:not(:disabled) {
   background: var(--color-primary-hover);
   box-shadow: var(--shadow-md);
 }
 
-.auth-form button[type='submit']:active:not(:disabled) {
+.auth-form button[type="submit"]:active:not(:disabled) {
   background: var(--color-primary-active);
   box-shadow: var(--shadow-xs);
 }
 
-.auth-form button[type='submit']:focus-visible {
+.auth-form button[type="submit"]:focus-visible {
   outline: 2px solid var(--color-mid-sky-blue);
   outline-offset: 2px;
 }
 
-.auth-form button[type='submit']:disabled {
+.auth-form button[type="submit"]:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
@@ -1746,7 +1856,6 @@
   background: rgba(183, 205, 230, 0.2);
 }
 
-
 /* ===========================
    TOAST NOTIFICATION
    =========================== */
@@ -2419,7 +2528,9 @@
   line-height: 32px !important;
   text-align: center !important;
   cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .cesium-button:hover {
