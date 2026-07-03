@@ -1472,7 +1472,13 @@ class SupabaseClient:
         Gracefully returns 0 on any error.
         """
         stats: Dict[str, Dict[str, int]] = {
-            pid: {"waypoint_count": 0, "photo_count": 0} for pid in project_ids
+            pid: {
+                "waypoint_count": 0,
+                "photo_count": 0,
+                "site_photo_count": 0,
+                "floor_photo_count": 0,
+            }
+            for pid in project_ids
         }
         if not project_ids or not self.client:
             return stats
@@ -1492,30 +1498,31 @@ class SupabaseClient:
                     flight_to_project[fid] = pid
 
             flight_ids = list(flight_to_project.keys())
-            if not flight_ids:
-                return stats
-
-            photo_resp = (
-                self.client.table("photos")
-                .select("flight_id, waypoint_id, photo_id")
-                .in_("flight_id", flight_ids)
-                .eq("active_photo", True)
-                .execute()
-            )
 
             seen_waypoints: Dict[str, set] = {pid: set() for pid in project_ids}
-            for row in photo_resp.data or []:
-                fid = row.get("flight_id")
-                if not fid:
-                    continue
-                pid = flight_to_project.get(fid)
-                if not pid or pid not in stats:
-                    continue
-                waypoint_id = row.get("waypoint_id")
-                if waypoint_id:
-                    seen_waypoints[pid].add(waypoint_id)
-                if row.get("photo_id"):
-                    stats[pid]["photo_count"] += 1
+
+            if flight_ids:
+                photo_resp = (
+                    self.client.table("photos")
+                    .select("flight_id, waypoint_id, photo_id")
+                    .in_("flight_id", flight_ids)
+                    .eq("active_photo", True)
+                    .execute()
+                )
+
+                for row in photo_resp.data or []:
+                    fid = row.get("flight_id")
+                    if not fid:
+                        continue
+                    pid = flight_to_project.get(fid)
+                    if not pid or pid not in stats:
+                        continue
+                    waypoint_id = row.get("waypoint_id")
+                    if waypoint_id:
+                        seen_waypoints[pid].add(waypoint_id)
+                    if row.get("photo_id"):
+                        stats[pid]["photo_count"] += 1
+                        stats[pid]["site_photo_count"] += 1
 
             # Also count floor plan photos (flight_id=NULL) via drawings → waypoints
             drw_resp = (
@@ -1565,6 +1572,7 @@ class SupabaseClient:
                             seen_waypoints[pid].add(wid)
                         if row.get("photo_id"):
                             stats[pid]["photo_count"] += 1
+                            stats[pid]["floor_photo_count"] += 1
 
             for pid in project_ids:
                 stats[pid]["waypoint_count"] = len(seen_waypoints[pid])

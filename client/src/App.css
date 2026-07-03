@@ -457,6 +457,101 @@
   pointer-events: none;
 }
 
+/* ===========================
+   VIEW MODE TOGGLE (page-level)
+   Matches the Standard / Satellite basemap toggle style.
+   Use wherever the Site / Floor toggle appears outside the subnav.
+   =========================== */
+
+.view-mode-toggle {
+  display: flex;
+  align-items: stretch;
+  background: var(--color-surface-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.view-mode-toggle__btn {
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-snug);
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.view-mode-toggle__btn:hover:not(.view-mode-toggle__btn--active) {
+  background: rgba(183, 205, 230, 0.28);
+}
+
+.view-mode-toggle__btn--active {
+  background: var(--color-primary);
+  color: var(--color-surface-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.view-mode-toggle__btn:focus-visible {
+  outline: 2px solid var(--color-mid-sky-blue);
+  outline-offset: -2px;
+}
+
+.view-mode-toggle__divider {
+  width: 1px;
+  background: var(--color-border);
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+/* ===========================
+   PHOTOS PAGE CONTROLS
+   =========================== */
+
+.photos-page__controls-right {
+  position: absolute;
+  z-index: 10;
+  top: var(--space-md);
+  right: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-sm);
+}
+
+.photos-page__options-popup {
+  position: absolute;
+  top: calc(100% + var(--space-xs));
+  right: 0;
+  z-index: 1100;
+  background: var(--color-surface-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 180px;
+  padding: var(--space-xs) 0;
+  overflow: hidden;
+}
+
+.photos-page__library {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg) var(--layout-margin-x, var(--space-lg));
+  max-width: var(--layout-max-width, 1200px);
+  width: 100%;
+  box-sizing: border-box;
+  align-self: center;
+}
+
 /* Align Drawing modal */
 .align-drawing-modal__panels {
   flex: 1;

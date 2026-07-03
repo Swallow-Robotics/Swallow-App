@@ -414,6 +414,8 @@ def project_summary(project_id):
     photo_stats = supabase_client.get_project_photo_stats([project_id])
     waypoint_count = photo_stats.get(project_id, {}).get("waypoint_count", 0)
     photo_count = photo_stats.get(project_id, {}).get("photo_count", 0)
+    site_photo_count = photo_stats.get(project_id, {}).get("site_photo_count", 0)
+    floor_photo_count = photo_stats.get(project_id, {}).get("floor_photo_count", 0)
     member_count = supabase_client.get_active_member_count(project_id)
 
     return jsonify(
@@ -421,6 +423,8 @@ def project_summary(project_id):
             "project": project,
             "waypoint_count": waypoint_count,
             "photo_count": photo_count,
+            "site_photo_count": site_photo_count,
+            "floor_photo_count": floor_photo_count,
             "member_count": member_count,
             "members": members,
         }

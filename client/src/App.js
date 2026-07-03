@@ -17,9 +17,6 @@ import {
   useAuth,
   MavlinkTelemetryProvider,
   ViewModeProvider,
-  useViewMode,
-  SITE_PLAN,
-  FLOOR_PLAN,
 } from './context';
 import AuthGuard from './components/auth/AuthGuard';
 import ProfileMenu from './components/auth/ProfileMenu';
@@ -27,9 +24,7 @@ import PageLayout from './components/layout/PageLayout';
 import {
   LoginPage,
   RegisterPage,
-  MapPage,
   FlyMapPage,
-  DrawingsPage,
   PhotosPage,
   PhotosDatePage,
   ProfilePage,
@@ -101,22 +96,11 @@ const Header = () => {
   );
 };
 
-// Routing-level guard: redirects /view/map to /view/drawings in Floor Plan mode.
-// Prevents direct URL access to the map while Floor Plan mode is active.
-const MapGuard = ({ children }) => {
-  const { isFloorPlan } = useViewMode();
-  if (isFloorPlan) {
-    return <Navigate to="/view/drawings" replace />;
-  }
-  return children;
-};
-
 const navLinkClass = ({ isActive }) =>
   isActive ? 'App-subnav__link App-subnav__link--active' : 'App-subnav__link';
 
 const ViewNav = () => {
   const { user, activeProject } = useAuth();
-  const { viewMode, setViewMode } = useViewMode();
   const hasActiveProject = !!(activeProject?.id || activeProject);
   const projectName =
     typeof activeProject === 'string' ? '' : activeProject?.project_name || '';
@@ -126,7 +110,6 @@ const ViewNav = () => {
   return (
     <nav className="App-subnav" aria-label="Primary navigation">
       <div className="App-subnav__inner">
-        {/* Left: page links */}
         <NavLink to="/view/projects" className={navLinkClass}>
           Projects
         </NavLink>
@@ -136,38 +119,10 @@ const ViewNav = () => {
           </NavLink>
         )}
         {hasActiveProject && (
-          <NavLink to="/view/photos" className={navLinkClass}>
+          <NavLink to="/view/photos" end className={navLinkClass}>
             Photos
           </NavLink>
         )}
-        {viewMode === SITE_PLAN && (
-          <NavLink to="/view/map" className={navLinkClass}>
-            Map
-          </NavLink>
-        )}
-        {hasActiveProject && (
-          <NavLink to="/view/drawings" className={navLinkClass}>
-            Drawings
-          </NavLink>
-        )}
-
-        {/* Centre: absolutely positioned so it is always at 50% of the banner */}
-        <div className="App-subnav__mode-toggle" role="group" aria-label="View mode">
-          <button
-            type="button"
-            className={`App-subnav__mode-btn${viewMode === SITE_PLAN ? ' App-subnav__mode-btn--active' : ''}`}
-            onClick={() => setViewMode(SITE_PLAN)}
-          >
-            Site
-          </button>
-          <button
-            type="button"
-            className={`App-subnav__mode-btn${viewMode === FLOOR_PLAN ? ' App-subnav__mode-btn--active' : ''}`}
-            onClick={() => setViewMode(FLOOR_PLAN)}
-          >
-            Floor
-          </button>
-        </div>
 
         {/* Right: active project name */}
         {projectName ? (
@@ -259,13 +214,11 @@ export function AppRoutes() {
             <Route index element={<Navigate to="/view/projects" replace />} />
             <Route
               path="map"
-              element={
-                <AuthGuard>
-                  <MapGuard>
-                    <MapPage />
-                  </MapGuard>
-                </AuthGuard>
-              }
+              element={<Navigate to="/view/photos?v=map" replace />}
+            />
+            <Route
+              path="drawings"
+              element={<Navigate to="/view/photos" replace />}
             />
             <Route
               path="dashboard"
@@ -278,9 +231,9 @@ export function AppRoutes() {
             <Route
               path="photos"
               element={
-                <AuthLayout>
+                <AuthGuard>
                   <PhotosPage />
-                </AuthLayout>
+                </AuthGuard>
               }
             />
             <Route
@@ -321,14 +274,6 @@ export function AppRoutes() {
                 <AuthLayout>
                   <ProjectMembersPage />
                 </AuthLayout>
-              }
-            />
-            <Route
-              path="drawings"
-              element={
-                <AuthGuard>
-                  <DrawingsPage />
-                </AuthGuard>
               }
             />
           </Route>

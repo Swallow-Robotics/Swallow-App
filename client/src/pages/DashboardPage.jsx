@@ -2,11 +2,25 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import maplibregl from 'maplibre-gl';
 import { useAuth } from '../context';
+import { useViewMode, SITE_PLAN, FLOOR_PLAN } from '../context/ViewModeContext';
 import apiClient from '../services/api';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-const StatCard = ({ label, value }) => (
-  <div className="surface-card" style={{ textAlign: 'center' }}>
+const StatCard = ({ label, value, onClick }) => (
+  <div
+    className="surface-card"
+    style={{
+      textAlign: 'center',
+      cursor: onClick ? 'pointer' : 'default',
+      transition: onClick ? 'box-shadow 150ms ease, transform 150ms ease' : undefined,
+    }}
+    onClick={onClick}
+    role={onClick ? 'button' : undefined}
+    tabIndex={onClick ? 0 : undefined}
+    onKeyDown={onClick ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+    onMouseEnter={onClick ? e => { e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-1px)'; } : undefined}
+    onMouseLeave={onClick ? e => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.transform = ''; } : undefined}
+  >
     <div
       style={{
         fontSize: 'var(--font-size-3xl)',
@@ -35,6 +49,7 @@ const StatCard = ({ label, value }) => (
 const DashboardPage = () => {
   const navigate = useNavigate();
   const { activeProject } = useAuth();
+  const { setViewMode } = useViewMode();
 
   const activeProjectId =
     activeProject?.project_id ||
@@ -206,8 +221,8 @@ const DashboardPage = () => {
     );
   }
 
-  const waypointCount = summary != null ? summary.waypoint_count : '—';
-  const photoCount = summary != null ? summary.photo_count : '—';
+  const sitePhotoCount = summary != null ? summary.site_photo_count : '—';
+  const floorPhotoCount = summary != null ? summary.floor_photo_count : '—';
   const memberCount = summary != null ? summary.member_count : '—';
   const members = summary?.members || [];
 
@@ -240,8 +255,22 @@ const DashboardPage = () => {
               gap: 'var(--space-md)',
             }}
           >
-            <StatCard label="No. Waypoints" value={waypointCount} />
-            <StatCard label="No. Photos" value={photoCount} />
+            <StatCard
+              label="No. Site Photos"
+              value={sitePhotoCount}
+              onClick={() => {
+                setViewMode(SITE_PLAN);
+                navigate('/view/photos');
+              }}
+            />
+            <StatCard
+              label="No. Floor Photos"
+              value={floorPhotoCount}
+              onClick={() => {
+                setViewMode(FLOOR_PLAN);
+                navigate('/view/photos');
+              }}
+            />
             <StatCard label="No. Project Members" value={memberCount} />
           </div>
 
@@ -309,7 +338,10 @@ const DashboardPage = () => {
                         padding: 'var(--space-xs) var(--space-sm)',
                         fontSize: 'var(--font-size-sm)',
                       }}
-                      onClick={() => navigate('/view/map')}
+                      onClick={() => {
+                        setViewMode(SITE_PLAN);
+                        navigate('/view/photos?v=map');
+                      }}
                     >
                       Open Map
                     </button>
@@ -321,13 +353,17 @@ const DashboardPage = () => {
                       width: '100%',
                       cursor: 'pointer',
                     }}
-                    onClick={() => navigate('/view/map')}
+                    onClick={() => {
+                      setViewMode(SITE_PLAN);
+                      navigate('/view/photos?v=map');
+                    }}
                     role="button"
                     tabIndex={0}
                     onKeyDown={e => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        navigate('/view/map');
+                        setViewMode(SITE_PLAN);
+                        navigate('/view/photos?v=map');
                       }
                     }}
                   />

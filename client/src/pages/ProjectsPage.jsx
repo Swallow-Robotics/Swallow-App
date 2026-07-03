@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context';
+import { useViewMode, SITE_PLAN } from '../context/ViewModeContext';
 import apiClient from '../services/api';
 import CreateProjectModal from '../components/projects/CreateProjectModal';
 import EditProjectModal from '../components/projects/EditProjectModal';
@@ -22,6 +23,7 @@ const ProjectsPage = () => {
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const navigate = useNavigate();
 
+  const { setViewMode } = useViewMode();
   const activeProjectId = activeProject?.project_id || activeProject || null;
 
   const visibleProjects = useMemo(
@@ -45,10 +47,11 @@ const ProjectsPage = () => {
 
   const handleActivate = useCallback(
     project => {
+      setViewMode(SITE_PLAN);
       setActiveProject(project);
       navigate('/view/dashboard');
     },
-    [navigate, setActiveProject]
+    [navigate, setActiveProject, setViewMode]
   );
 
   const handleEdit = useCallback(project => {
