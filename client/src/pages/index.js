@@ -12,3 +12,6 @@ export { default as ArchivedProjectsPage } from './ArchivedProjectsPage';
 export { default as ProjectMembersPage } from './ProjectMembersPage';
 export { default as PhotoViewerPage } from './PhotoViewerPage';
 export { default as DashboardPage } from './DashboardPage';
+export { default as WeatherPage } from './WeatherPage';
+export { default as VideoPage } from './VideoPage';
+

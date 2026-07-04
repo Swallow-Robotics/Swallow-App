@@ -34,7 +34,10 @@ import {
   ArchivedProjectsPage,
   ProjectMembersPage,
   DashboardPage,
+  WeatherPage,
+  VideoPage,
 } from "./pages";
+
 import PhotoViewerPage from "./pages/PhotoViewerPage";
 import PublicProjectView from "./pages/PublicProjectView";
 import ConfirmEmailPage from "./pages/ConfirmEmailPage";
@@ -144,6 +147,16 @@ const Header = () => {
                     Photos
                   </NavLink>
                 )}
+                {user && hasActiveProject && (
+                  <NavLink to="/view/weather" className={headerNavTabClass}>
+                    Weather
+                  </NavLink>
+                )}
+                {user && hasActiveProject && (
+                  <NavLink to="/view/video" className={headerNavTabClass}>
+                    Video
+                  </NavLink>
+                )}
               </>
             ) : (
               <>
@@ -206,6 +219,16 @@ const ViewNav = () => {
         {hasActiveProject && (
           <NavLink to="/view/photos" end className={navLinkClass}>
             Photos
+          </NavLink>
+        )}
+        {hasActiveProject && (
+          <NavLink to="/view/weather" className={navLinkClass}>
+            Weather
+          </NavLink>
+        )}
+        {hasActiveProject && (
+          <NavLink to="/view/video" className={navLinkClass}>
+            Video
           </NavLink>
         )}
 
@@ -367,6 +390,22 @@ export function AppRoutes() {
                 <AuthGuard>
                   <PhotoViewerPage />
                 </AuthGuard>
+              }
+            />
+            <Route
+              path="weather"
+              element={
+                <AuthLayout>
+                  <WeatherPage />
+                </AuthLayout>
+              }
+            />
+            <Route
+              path="video"
+              element={
+                <AuthLayout>
+                  <VideoPage />
+                </AuthLayout>
               }
             />
             <Route
