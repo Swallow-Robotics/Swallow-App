@@ -1,3 +1,0 @@
-[submodule "onboard_firmware"]
-	path = onboard_firmware
-	url = https://github.com/Swallow-Robotics/Skyer-Onboard.git
