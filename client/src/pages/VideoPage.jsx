@@ -4,6 +4,8 @@ import apiClient from '../services/api';
 import HlsVideoPlayer from '../components/video/HlsVideoPlayer';
 import DockVideoModal from '../components/video/DockVideoModal';
 
+const PREVIEW_HEIGHT = 220;
+
 const VideoPage = () => {
   const { activeProject } = useAuth();
   const activeProjectId =
@@ -92,23 +94,16 @@ const VideoPage = () => {
                 }}
               >
                 <h6 style={{ margin: 0 }}>
-                  {dock.dock_identifier || dock.dock_model || 'Dock'}
+                  {dock.dock_name || dock.dock_identifier || dock.dock_model || 'Dock'}
                 </h6>
               </div>
-              <div style={{ position: 'relative' }}>
-                <HlsVideoPlayer
-                  src={dock.video_url}
-                  muted
-                  autoPlay
-                  playsInline
-                  style={{
-                    width: '100%',
-                    display: 'block',
-                    background: '#000',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </div>
+              <HlsVideoPlayer
+                src={dock.video_url}
+                muted
+                autoPlay
+                playsInline
+                style={{ height: PREVIEW_HEIGHT }}
+              />
             </div>
           ))}
         </div>

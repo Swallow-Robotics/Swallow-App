@@ -38,7 +38,7 @@ const DockVideoModal = ({ dock, onClose }) => {
           }}
         >
           <h6 style={{ margin: 0 }}>
-            {dock.dock_identifier || dock.dock_model || 'Dock'}
+            {dock.dock_name || dock.dock_identifier || dock.dock_model || 'Dock'}
           </h6>
           <button
             type="button"
@@ -57,13 +57,14 @@ const DockVideoModal = ({ dock, onClose }) => {
             ×
           </button>
         </div>
-        <div style={{ flex: 1, minHeight: 0, background: '#000' }}>
+        <div style={{ flex: 1, minHeight: 0 }}>
           <HlsVideoPlayer
             src={dock.video_url}
             controls
             autoPlay
             playsInline
-            style={{ width: '100%', height: '100%', display: 'block' }}
+            objectFit="contain"
+            style={{ width: '100%', height: '100%' }}
           />
         </div>
       </div>
