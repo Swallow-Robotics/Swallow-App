@@ -1,7 +1,8 @@
 import React from 'react';
 import HlsVideoPlayer from './HlsVideoPlayer';
 
-// Near-fullscreen playback of a single dock's HLS stream.
+const HEADER_HEIGHT = 44;
+
 const DockVideoModal = ({ dock, onClose }) => {
   if (!dock) return null;
 
@@ -15,10 +16,7 @@ const DockVideoModal = ({ dock, onClose }) => {
       <div
         className="modal-body"
         style={{
-          width: '96vw',
-          maxWidth: 1600,
-          height: '92vh',
-          maxHeight: 'none',
+          width: `min(96vw, calc((92vh - ${HEADER_HEIGHT}px) * 16 / 9))`,
           padding: 0,
           display: 'flex',
           flexDirection: 'column',
@@ -29,7 +27,9 @@ const DockVideoModal = ({ dock, onClose }) => {
       >
         <div
           style={{
-            padding: 'var(--space-sm) var(--space-md)',
+            height: HEADER_HEIGHT,
+            boxSizing: 'border-box',
+            padding: '0 var(--space-md)',
             borderBottom: '1px solid var(--color-border)',
             display: 'flex',
             justifyContent: 'space-between',
@@ -57,16 +57,14 @@ const DockVideoModal = ({ dock, onClose }) => {
             ×
           </button>
         </div>
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <HlsVideoPlayer
-            src={dock.video_url}
-            controls
-            autoPlay
-            playsInline
-            objectFit="contain"
-            style={{ width: '100%', height: '100%' }}
-          />
-        </div>
+        <HlsVideoPlayer
+          src={dock.video_url}
+          controls
+          autoPlay
+          playsInline
+          objectFit="contain"
+          style={{ width: '100%', aspectRatio: '16 / 9' }}
+        />
       </div>
     </div>
   );

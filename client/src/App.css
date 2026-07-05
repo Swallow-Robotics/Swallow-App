@@ -1829,7 +1829,7 @@
   height: 28px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.25);
-  border-top-color: var(--color-accent);
+  border-top-color: #9aa0a6;
   animation: spinner-spin 0.8s linear infinite;
 }
 
@@ -1837,6 +1837,10 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.hls-video::-webkit-media-controls-loading-panel {
+  display: none !important;
 }
 
 /* ===========================

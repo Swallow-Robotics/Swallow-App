@@ -4,7 +4,7 @@ import apiClient from '../services/api';
 import HlsVideoPlayer from '../components/video/HlsVideoPlayer';
 import DockVideoModal from '../components/video/DockVideoModal';
 
-const PREVIEW_HEIGHT = 220;
+const PREVIEW_HEIGHT = '45vh';
 
 const VideoPage = () => {
   const { activeProject } = useAuth();
@@ -66,8 +66,9 @@ const VideoPage = () => {
       ) : (
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
             gap: 'var(--space-lg)',
           }}
         >
@@ -84,7 +85,7 @@ const VideoPage = () => {
                   setExpandedDock(dock);
                 }
               }}
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', flex: '0 0 auto', maxWidth: '90vw' }}
               title="Click to expand"
             >
               <div
@@ -102,7 +103,7 @@ const VideoPage = () => {
                 muted
                 autoPlay
                 playsInline
-                style={{ height: PREVIEW_HEIGHT }}
+                style={{ height: PREVIEW_HEIGHT, aspectRatio: '16 / 9', maxWidth: '90vw' }}
               />
             </div>
           ))}

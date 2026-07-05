@@ -60,6 +60,7 @@ const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
       <video
         ref={videoRef}
         {...videoProps}
+        className="hls-video"
         style={{
           position: 'absolute',
           inset: 0,
