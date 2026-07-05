@@ -54,38 +54,3 @@ Deploy **only** `client/build/` to GitHub Pages. Any `REACT_APP_*` settings must
 ### Common issue: “Missing Supabase environment variables”
 
 If you see a Supabase env error in the browser console, `REACT_APP_SUPABASE_URL` / `REACT_APP_SUPABASE_ANON_KEY` is missing (or the dev server was not restarted after setting them).
-
-### MAVLink dialect
-
-The Fly tab talks to the drone over a USB telemetry radio using the Web Serial
-API. Custom messages (e.g. `MISSION_CHUNK`) are defined once in the firmware
-repo and code-generated for the client so the wire format can never drift.
-
-- **Source of truth**: `onboard_firmware/mavlink/mission_msgs.xml`
-  (a git submodule of [Skyer-Onboard](https://github.com/Swallow-Robotics/Skyer-Onboard)).
-- **Generated output**: `src/services/mavlinkDialect.generated.js` (checked in;
-  field offsets, payload length and `CRC_EXTRA` per message). Do not edit by hand.
-- **Encoder/decoder**: `src/services/mavlinkSerial.js` is table-driven and
-  consumes the generated file. `MavlinkTelemetryContext` exposes `sendMessage()`.
-
-First-time checkout needs the submodule:
-
-```bash
-git submodule update --init --recursive
-```
-
-When the dialect XML changes on the drone:
-
-1. The firmware repo regenerates and commits its C headers (`generate_mavlink_msgs.sh`).
-2. In this repo, bump the submodule to the new commit, then regenerate:
-
-```bash
-git submodule update --remote onboard_firmware
-cd client && yarn generate:mavlink
-```
-
-3. Commit the updated `mavlinkDialect.generated.js` alongside the submodule bump.
-
-`generate:mavlink` recomputes `CRC_EXTRA`/offsets from the XML and **cross-checks
-them against the firmware's generated C headers**, failing loudly on any
-mismatch so the client and drone can't silently disagree.

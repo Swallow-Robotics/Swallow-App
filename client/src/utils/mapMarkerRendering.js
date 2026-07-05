@@ -1,6 +1,5 @@
 /**
  * Shared marker and popup rendering for Map and Plan pages.
- * Used by FlyMapPage for photo/cluster marker rendering.
  */
 
 import maplibregl from 'maplibre-gl';

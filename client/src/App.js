@@ -15,7 +15,6 @@ import "./App.css";
 import {
   AuthProvider,
   useAuth,
-  MavlinkTelemetryProvider,
   ViewModeProvider,
   PortalModeProvider,
   usePortalMode,
@@ -26,7 +25,6 @@ import PageLayout from "./components/layout/PageLayout";
 import {
   LoginPage,
   RegisterPage,
-  FlyMapPage,
   PhotosPage,
   PhotosDatePage,
   ProfilePage,
@@ -53,7 +51,6 @@ const useDomain = () => {
   const location = useLocation();
   const { pathname } = location;
   if (pathname === "/") return "home";
-  if (pathname.startsWith("/fly")) return "fly";
   if (pathname.startsWith("/plan")) return "plan";
   if (pathname.startsWith("/view")) return "view";
   return "none";
@@ -171,12 +168,6 @@ const Header = () => {
                   className={`App-header__tab${activeDomain === "plan" ? " App-header__tab--active" : ""}`}
                 >
                   Plan
-                </Link>
-                <Link
-                  to="/fly"
-                  className={`App-header__tab${activeDomain === "fly" ? " App-header__tab--active" : ""}`}
-                >
-                  Fly
                 </Link>
               </>
             )}
@@ -434,18 +425,6 @@ export function AppRoutes() {
             />
           </Route>
 
-          {/* Fly domain — internal Swallow portal only */}
-          <Route
-            path="/fly"
-            element={
-              <InternalPortalRoute>
-                <AuthGuard>
-                  <FlyMapPage />
-                </AuthGuard>
-              </InternalPortalRoute>
-            }
-          />
-
           {/* Plan domain — internal Swallow portal only */}
           <Route path="/plan">
             <Route index element={<Navigate to="/plan/projects" replace />} />
@@ -511,11 +490,9 @@ function App() {
     <AuthProvider>
       <PortalModeProvider>
         <ViewModeProvider>
-          <MavlinkTelemetryProvider>
-            <Router basename={process.env.PUBLIC_URL || "/"}>
-              <AppRoutes />
-            </Router>
-          </MavlinkTelemetryProvider>
+          <Router basename={process.env.PUBLIC_URL || "/"}>
+            <AppRoutes />
+          </Router>
         </ViewModeProvider>
       </PortalModeProvider>
     </AuthProvider>

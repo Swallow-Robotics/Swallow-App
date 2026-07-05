@@ -1,5 +1,5 @@
 /**
- * Service worker that caches map tile responses (Cesium imagery, MapLibre tiles)
+ * Service worker that caches map tile responses (MapLibre tiles)
  * in the Cache API so repeat visits / zoom-in on the same area are instant.
  *
  * Strategy: network-first with cache fallback.
@@ -21,7 +21,6 @@ const TILE_URL_PATTERNS = [
   /\.tiles\.mapbox\.com\//,
   /tile\.opentopomap\.org\//,
   /server\.arcgisonline\.com\//,
-  /\/cesium\/.*\.(jpg|jpeg|png|webp)/i,
   /\/imagery\/.*\.(jpg|jpeg|png|webp)/i,
 ];
 

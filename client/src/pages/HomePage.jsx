@@ -38,11 +38,6 @@ const HomePage = () => {
           title="Plan"
           description="Build and review mission plans for your operations."
         />
-        <DomainCard
-          to="/fly"
-          title="Fly"
-          description="Live flight operations with real-time telemetry."
-        />
       </div>
     </div>
   );

@@ -3,12 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
-import { Ion } from 'cesium';
 import { configureMaplibreWorker } from './utils/maplibreWorker';
-
-if (process.env.REACT_APP_CESIUM_ION_TOKEN) {
-  Ion.defaultAccessToken = process.env.REACT_APP_CESIUM_ION_TOKEN;
-}
 
 configureMaplibreWorker();
 
