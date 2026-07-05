@@ -1,10 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-// Plays an HLS (.m3u8) stream: native <video> src on Safari, hls.js elsewhere.
-// hls.js is loaded on demand so pages that don't render video don't pay for it.
-// Renders a fixed-size wrapper (sized via `style`) with a spinner overlay
-// until the first frame is ready, so the box never collapses/jumps while
-// the stream connects.
+const HLS_CDN_SECRET = (process.env.REACT_APP_HLS_CDN_SECRET || '').trim();
+
 const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
   const videoRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +26,13 @@ const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
       import('hls.js').then(({ default: Hls }) => {
         if (cancelled) return;
         if (Hls.isSupported()) {
-          hls = new Hls();
+          hls = new Hls({
+            xhrSetup: xhr => {
+              if (HLS_CDN_SECRET) {
+                xhr.setRequestHeader('Authorization', `Bearer ${HLS_CDN_SECRET}`);
+              }
+            },
+          });
           hls.loadSource(src);
           hls.attachMedia(video);
         } else {
