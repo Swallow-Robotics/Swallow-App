@@ -3,7 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 const HLS_CDN_SECRET = (process.env.REACT_APP_HLS_CDN_SECRET || '').trim();
 
 const STALL_TIMEOUT_MS = 1000;
-const RECONNECT_DELAY_MS = 1000;
+const MAX_SOFT_RETRIES = 5;
+const HARD_RECONNECT_DELAY_MS = 1000;
 
 const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
   const videoRef = useRef(null);
@@ -17,7 +18,8 @@ const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
     let hls;
     let cancelled = false;
     let stallTimer;
-    let reconnectTimer;
+    let hardReconnectTimer;
+    let softRetryCount = 0;
 
     const clearStallTimer = () => {
       clearTimeout(stallTimer);
@@ -25,19 +27,23 @@ const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
     };
     const armStallTimer = () => {
       clearStallTimer();
-      stallTimer = setTimeout(() => reconnectSoon(), STALL_TIMEOUT_MS);
+      stallTimer = setTimeout(handleStall, STALL_TIMEOUT_MS);
     };
 
     const handleReady = () => {
       setIsLoading(false);
-      clearStallTimer();
+      softRetryCount = 0;
+      armStallTimer(); // keep watching in case a live stream cuts out later
     };
     const handleWaiting = () => {
       setIsLoading(true);
       armStallTimer();
     };
-    const handleProgress = () => armStallTimer();
-    const handleError = () => reconnectSoon();
+    const handleProgress = () => {
+      softRetryCount = 0;
+      armStallTimer();
+    };
+    const handleError = () => hardReconnectSoon();
 
     video.addEventListener('loadeddata', handleReady);
     video.addEventListener('playing', handleReady);
@@ -45,16 +51,30 @@ const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
     video.addEventListener('progress', handleProgress);
     video.addEventListener('error', handleError);
 
-    function reconnectSoon() {
+    function handleStall() {
+      if (cancelled) return;
+      setIsLoading(true);
+      if (hls && softRetryCount < MAX_SOFT_RETRIES) {
+        softRetryCount += 1;
+        hls.startLoad(); // renegotiate in place, no teardown
+        armStallTimer();
+        return;
+      }
+      // Native path has no soft renegotiation, or soft retries are exhausted.
+      hardReconnectSoon();
+    }
+
+    function hardReconnectSoon() {
       if (cancelled) return;
       setIsLoading(true);
       clearStallTimer();
-      clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
+      clearTimeout(hardReconnectTimer);
+      hardReconnectTimer = setTimeout(connect, HARD_RECONNECT_DELAY_MS);
     }
 
     function connect() {
       if (cancelled) return;
+      softRetryCount = 0;
       if (hls) {
         hls.destroy();
         hls = null;
@@ -88,7 +108,7 @@ const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
                 hls.recoverMediaError();
                 break;
               default:
-                reconnectSoon();
+                hardReconnectSoon();
                 break;
             }
           });
@@ -106,7 +126,7 @@ const HlsVideoPlayer = ({ src, style, objectFit = 'cover', ...videoProps }) => {
     return () => {
       cancelled = true;
       clearStallTimer();
-      clearTimeout(reconnectTimer);
+      clearTimeout(hardReconnectTimer);
       video.removeEventListener('loadeddata', handleReady);
       video.removeEventListener('playing', handleReady);
       video.removeEventListener('waiting', handleWaiting);
