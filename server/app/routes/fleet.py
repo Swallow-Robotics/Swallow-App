@@ -1,5 +1,5 @@
 """
-Fleet routes for drone and dock hardware management.
+Fleet routes for drone and base station hardware management.
 """
 
 import logging
@@ -271,42 +271,42 @@ def deactivate_drone(drone_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DOCKS
+# BASE STATIONS
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@fleet_bp.route("/docks/history", methods=["GET"])
+@fleet_bp.route("/base-stations/history", methods=["GET"])
 @jwt_required
-def dock_history():
-    """Return full history for a dock_identifier across all projects."""
+def base_station_history():
+    """Return full history for a bs_serial_number across all projects."""
     try:
         _require_auth()
     except PermissionError as exc:
         return jsonify({"error": str(exc)}), 401
 
-    dock_identifier = (request.args.get("dock_identifier") or "").strip()
-    if not dock_identifier:
-        return jsonify({"error": "dock_identifier is required"}), 400
+    bs_serial_number = (request.args.get("bs_serial_number") or "").strip()
+    if not bs_serial_number:
+        return jsonify({"error": "bs_serial_number is required"}), 400
 
     try:
         resp = (
-            supabase_client.client.table("docks")
+            supabase_client.client.table("base_stations")
             .select("*")
-            .eq("dock_identifier", dock_identifier)
-            .order("dock_last_inspected", desc=True)
+            .eq("bs_serial_number", bs_serial_number)
+            .order("bs_last_inspected", desc=True)
             .execute()
         )
         records = _enrich_with_project_org(resp.data or [], "project_id", "org_id")
         return jsonify({"history": records})
     except Exception as exc:
-        logger.error("dock_history error: %s", exc)
+        logger.error("base_station_history error: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 
-@fleet_bp.route("/docks", methods=["GET"])
+@fleet_bp.route("/base-stations", methods=["GET"])
 @jwt_required
-def list_docks():
-    """List active docks for a project."""
+def list_base_stations():
+    """List active base stations for a project."""
     try:
         user_id = _require_auth()
     except PermissionError as exc:
@@ -322,22 +322,22 @@ def list_docks():
 
     try:
         resp = (
-            supabase_client.client.table("docks")
+            supabase_client.client.table("base_stations")
             .select("*")
             .eq("project_id", project_id)
-            .eq("active_dock", True)
+            .eq("active_bs", True)
             .execute()
         )
-        return jsonify({"docks": resp.data or []})
+        return jsonify({"base_stations": resp.data or []})
     except Exception as exc:
-        logger.error("list_docks error: %s", exc)
+        logger.error("list_base_stations error: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 
-@fleet_bp.route("/docks", methods=["POST"])
+@fleet_bp.route("/base-stations", methods=["POST"])
 @jwt_required
-def create_dock():
-    """Create a dock entry in install or service mode."""
+def create_base_station():
+    """Create a base station entry in install or service mode."""
     try:
         user_id = _require_auth()
     except PermissionError as exc:
@@ -354,70 +354,66 @@ def create_dock():
     if isinstance(permission, tuple):
         return jsonify(permission[0]), permission[1]
 
-    org_id = _get_project_org_id(project_id)
-
     try:
         if mode == "service":
-            dock_identifier = (payload.get("dock_identifier") or "").strip()
-            if not dock_identifier:
-                return jsonify({"error": "dock_identifier is required for service mode"}), 400
+            bs_serial_number = (payload.get("bs_serial_number") or "").strip()
+            if not bs_serial_number:
+                return jsonify({"error": "bs_serial_number is required for service mode"}), 400
 
             existing_resp = (
-                supabase_client.client.table("docks")
+                supabase_client.client.table("base_stations")
                 .select("*")
-                .eq("dock_identifier", dock_identifier)
+                .eq("bs_serial_number", bs_serial_number)
                 .eq("project_id", project_id)
-                .eq("active_dock", True)
+                .eq("active_bs", True)
                 .limit(1)
                 .execute()
             )
             existing = (existing_resp.data or [None])[0]
             if not existing:
-                return jsonify({"error": "No active dock found for this identifier"}), 404
+                return jsonify({"error": "No active base station found for this serial number"}), 404
 
-            supabase_client.client.table("docks").update({"active_dock": False}).eq(
-                "dock_id", existing["dock_id"]
+            supabase_client.client.table("base_stations").update({"active_bs": False}).eq(
+                "bs_id", existing["bs_id"]
             ).execute()
 
             new_row = {
-                "dock_id": str(uuid4()),
-                "dock_identifier": dock_identifier,
-                "dock_model": existing.get("dock_model"),
-                "dock_year": existing.get("dock_year"),
-                "dock_install_date": existing.get("dock_install_date"),
-                "dock_last_inspected": _parse_date(payload.get("dock_last_inspected")),
-                "dock_last_inspector": payload.get("dock_last_inspector") or None,
+                "bs_id": str(uuid4()),
+                "bs_serial_number": bs_serial_number,
+                "bs_model": existing.get("bs_model"),
+                "bs_name": existing.get("bs_name"),
+                "bs_install_date": existing.get("bs_install_date"),
+                "bs_last_inspected": _parse_date(payload.get("bs_last_inspected")),
+                "bs_last_inspector": payload.get("bs_last_inspector") or None,
                 "project_id": project_id,
-                "org_id": org_id,
-                "active_dock": True,
+                "active_bs": True,
             }
         else:
             new_row = {
-                "dock_id": str(uuid4()),
-                "dock_identifier": (payload.get("dock_identifier") or "").strip() or None,
-                "dock_model": (payload.get("dock_model") or "").strip() or None,
-                "dock_year": int(payload["dock_year"]) if payload.get("dock_year") else None,
-                "dock_install_date": _parse_date(payload.get("dock_install_date")),
-                "dock_last_inspected": _parse_date(payload.get("dock_last_inspected")),
-                "dock_last_inspector": payload.get("dock_last_inspector") or None,
+                "bs_id": str(uuid4()),
+                "bs_serial_number": (payload.get("bs_serial_number") or "").strip() or None,
+                "bs_model": (payload.get("bs_model") or "").strip() or None,
+                "bs_name": (payload.get("bs_name") or "").strip() or None,
+                "bs_install_date": _parse_date(payload.get("bs_install_date")),
+                "bs_last_inspected": _parse_date(payload.get("bs_last_inspected")),
+                "bs_last_inspector": payload.get("bs_last_inspector") or None,
                 "project_id": project_id,
-                "org_id": org_id,
-                "active_dock": True,
+                "active_bs": True,
             }
 
-        resp = supabase_client.client.table("docks").insert(new_row).execute()
+        resp = supabase_client.client.table("base_stations").insert(new_row).execute()
         if not resp.data:
-            return jsonify({"error": "Failed to create dock entry"}), 500
+            return jsonify({"error": "Failed to create base station entry"}), 500
         return jsonify(resp.data[0]), 201
     except Exception as exc:
-        logger.error("create_dock error: %s", exc)
+        logger.error("create_base_station error: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 
-@fleet_bp.route("/docks/<dock_id>", methods=["DELETE"])
+@fleet_bp.route("/base-stations/<bs_id>", methods=["DELETE"])
 @jwt_required
-def deactivate_dock(dock_id):
-    """Deactivate a dock by setting active_dock=False."""
+def deactivate_base_station(bs_id):
+    """Deactivate a base station by setting active_bs=False."""
     try:
         user_id = _require_auth()
     except PermissionError as exc:
@@ -425,9 +421,9 @@ def deactivate_dock(dock_id):
 
     try:
         existing_resp = (
-            supabase_client.client.table("docks")
+            supabase_client.client.table("base_stations")
             .select("project_id")
-            .eq("dock_id", dock_id)
+            .eq("bs_id", bs_id)
             .limit(1)
             .execute()
         )
@@ -436,7 +432,7 @@ def deactivate_dock(dock_id):
         return jsonify({"error": str(exc)}), 500
 
     if not existing:
-        return jsonify({"error": "Dock not found"}), 404
+        return jsonify({"error": "Base station not found"}), 404
 
     project_id = existing["project_id"]
     permission = require_role(project_id, VIEW_ROLES, user_id=user_id)
@@ -444,10 +440,10 @@ def deactivate_dock(dock_id):
         return jsonify(permission[0]), permission[1]
 
     try:
-        supabase_client.client.table("docks").update({"active_dock": False}).eq(
-            "dock_id", dock_id
+        supabase_client.client.table("base_stations").update({"active_bs": False}).eq(
+            "bs_id", bs_id
         ).execute()
         return jsonify({"status": "deactivated"})
     except Exception as exc:
-        logger.error("deactivate_dock error: %s", exc)
+        logger.error("deactivate_base_station error: %s", exc)
         return jsonify({"error": str(exc)}), 500

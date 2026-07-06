@@ -1078,7 +1078,7 @@ def deactivate_flight_photo(photo_id):
 # Floor plan photo upload.
 #
 # Data path: photos only — drawings → waypoints → photos.
-# No interaction with flights, plans, drones, docks, or pilots.
+# No interaction with flights, plans, drones, base_stations, or pilots.
 # flight_id is stored as NULL; capture_method is always '360_camera'.
 # ---------------------------------------------------------------------------
 

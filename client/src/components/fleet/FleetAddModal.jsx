@@ -10,10 +10,10 @@ const EMPTY_DRONE = {
   remoteId: '',
 };
 
-const EMPTY_DOCK = {
-  identifier: '',
+const EMPTY_BASE_STATION = {
+  serialNumber: '',
+  name: '',
   model: '',
-  year: '',
   installDate: '',
   inspectionDate: '',
   inspector: '',
@@ -26,8 +26,8 @@ const EMPTY_SERVICE_DRONE = {
   remoteId: '',
 };
 
-const EMPTY_SERVICE_DOCK = {
-  identifier: '',
+const EMPTY_SERVICE_BASE_STATION = {
+  serialNumber: '',
   inspectionDate: '',
   inspector: '',
 };
@@ -80,23 +80,23 @@ const FleetAddModal = ({
   onClose,
   onSubmit,
   activeDrones,
-  activeDocks,
+  activeBaseStations,
   error,
 }) => {
   const [mode, setMode] = useState('install');
   const [droneInstall, setDroneInstall] = useState(EMPTY_DRONE);
-  const [dockInstall, setDockInstall] = useState(EMPTY_DOCK);
+  const [baseStationInstall, setBaseStationInstall] = useState(EMPTY_BASE_STATION);
   const [droneService, setDroneService] = useState(EMPTY_SERVICE_DRONE);
-  const [dockService, setDockService] = useState(EMPTY_SERVICE_DOCK);
+  const [baseStationService, setBaseStationService] = useState(EMPTY_SERVICE_BASE_STATION);
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setMode('install');
     setDroneInstall(EMPTY_DRONE);
-    setDockInstall(EMPTY_DOCK);
+    setBaseStationInstall(EMPTY_BASE_STATION);
     setDroneService(EMPTY_SERVICE_DRONE);
-    setDockService(EMPTY_SERVICE_DOCK);
+    setBaseStationService(EMPTY_SERVICE_BASE_STATION);
     setFormError('');
   }, [open]);
 
@@ -104,16 +104,16 @@ const FleetAddModal = ({
     field => val => setDroneInstall(prev => ({ ...prev, [field]: val })),
     []
   );
-  const updateDockInstall = useCallback(
-    field => val => setDockInstall(prev => ({ ...prev, [field]: val })),
+  const updateBaseStationInstall = useCallback(
+    field => val => setBaseStationInstall(prev => ({ ...prev, [field]: val })),
     []
   );
   const updateDroneService = useCallback(
     field => val => setDroneService(prev => ({ ...prev, [field]: val })),
     []
   );
-  const updateDockService = useCallback(
-    field => val => setDockService(prev => ({ ...prev, [field]: val })),
+  const updateBaseStationService = useCallback(
+    field => val => setBaseStationService(prev => ({ ...prev, [field]: val })),
     []
   );
 
@@ -122,26 +122,30 @@ const FleetAddModal = ({
     setFormError('');
 
     const droneFields = mode === 'install' ? droneInstall : droneService;
-    const dockFields = mode === 'install' ? dockInstall : dockService;
+    const baseStationFields =
+      mode === 'install' ? baseStationInstall : baseStationService;
 
     const droneEmpty = isSectionEmpty(droneFields);
-    const dockEmpty = isSectionEmpty(dockFields);
+    const baseStationEmpty = isSectionEmpty(baseStationFields);
     const droneComplete = isSectionComplete(droneFields);
-    const dockComplete = isSectionComplete(dockFields);
+    const baseStationComplete = isSectionComplete(baseStationFields);
 
-    if (droneEmpty && dockEmpty) {
-      setFormError('Drone/Dock information incomplete.');
+    if (droneEmpty && baseStationEmpty) {
+      setFormError('Drone/Base Station information incomplete.');
       return;
     }
-    if ((!droneEmpty && !droneComplete) || (!dockEmpty && !dockComplete)) {
-      setFormError('Drone/Dock information incomplete.');
+    if (
+      (!droneEmpty && !droneComplete) ||
+      (!baseStationEmpty && !baseStationComplete)
+    ) {
+      setFormError('Drone/Base Station information incomplete.');
       return;
     }
 
     onSubmit({
       mode,
       drone: droneComplete ? droneFields : null,
-      dock: dockComplete ? dockFields : null,
+      baseStation: baseStationComplete ? baseStationFields : null,
     });
   };
 
@@ -170,7 +174,7 @@ const FleetAddModal = ({
         >
           ✕
         </button>
-        <h3 className="modal-header">Add Drone / Dock</h3>
+        <h3 className="modal-header">Add Drone / Base Station</h3>
 
         {displayError ? (
           <p
@@ -335,74 +339,76 @@ const FleetAddModal = ({
           )}
 
           <Divider />
-          <SectionLabel>Docks</SectionLabel>
+          <SectionLabel>Base Stations</SectionLabel>
 
           {mode === 'install' ? (
             <>
               <FormInput
-                label="Hardware Identifier"
-                value={dockInstall.identifier}
-                onChange={updateDockInstall('identifier')}
+                label="Serial Number"
+                value={baseStationInstall.serialNumber}
+                onChange={updateBaseStationInstall('serialNumber')}
+              />
+              <FormInput
+                label="Name"
+                value={baseStationInstall.name}
+                onChange={updateBaseStationInstall('name')}
               />
               <FormInput
                 label="Model"
-                value={dockInstall.model}
-                onChange={updateDockInstall('model')}
-              />
-              <FormInput
-                label="Year"
-                type="number"
-                value={dockInstall.year}
-                onChange={updateDockInstall('year')}
+                value={baseStationInstall.model}
+                onChange={updateBaseStationInstall('model')}
               />
               <FormInput
                 label="Install Date"
-                value={dockInstall.installDate}
-                onChange={updateDockInstall('installDate')}
+                value={baseStationInstall.installDate}
+                onChange={updateBaseStationInstall('installDate')}
                 placeholder="MM/DD/YYYY"
               />
               <FormInput
                 label="Inspection Date"
-                value={dockInstall.inspectionDate}
-                onChange={updateDockInstall('inspectionDate')}
+                value={baseStationInstall.inspectionDate}
+                onChange={updateBaseStationInstall('inspectionDate')}
                 placeholder="MM/DD/YYYY"
               />
               <FormInput
                 label="Inspector"
-                value={dockInstall.inspector}
-                onChange={updateDockInstall('inspector')}
+                value={baseStationInstall.inspector}
+                onChange={updateBaseStationInstall('inspector')}
               />
             </>
           ) : (
             <>
               <label className="form-label" style={{ marginBottom: 'var(--space-sm)' }}>
-                Select Dock
+                Select Base Station
                 <select
-                  value={dockService.identifier}
+                  value={baseStationService.serialNumber}
                   onChange={e =>
-                    setDockService(prev => ({ ...prev, identifier: e.target.value }))
+                    setBaseStationService(prev => ({
+                      ...prev,
+                      serialNumber: e.target.value,
+                    }))
                   }
                   className="form-select"
                 >
-                  <option value="">— select dock —</option>
-                  {(activeDocks || []).map(d => (
-                    <option key={d.dock_id} value={d.dock_identifier}>
-                      {d.dock_identifier}
-                      {d.dock_model ? ` (${d.dock_model})` : ''}
+                  <option value="">— select base station —</option>
+                  {(activeBaseStations || []).map(bs => (
+                    <option key={bs.bs_id} value={bs.bs_serial_number}>
+                      {bs.bs_name || bs.bs_serial_number}
+                      {bs.bs_model ? ` (${bs.bs_model})` : ''}
                     </option>
                   ))}
                 </select>
               </label>
               <FormInput
                 label="Inspection Date"
-                value={dockService.inspectionDate}
-                onChange={updateDockService('inspectionDate')}
+                value={baseStationService.inspectionDate}
+                onChange={updateBaseStationService('inspectionDate')}
                 placeholder="MM/DD/YYYY"
               />
               <FormInput
                 label="Inspector"
-                value={dockService.inspector}
-                onChange={updateDockService('inspector')}
+                value={baseStationService.inspector}
+                onChange={updateBaseStationService('inspector')}
               />
             </>
           )}

@@ -21,12 +21,12 @@ const PlanFleetPage = () => {
   const activeProjectId = searchParams.get('project_id') || null;
 
   const [drones, setDrones] = useState([]);
-  const [docks, setDocks] = useState([]);
+  const [baseStations, setBaseStations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [pageError, setPageError] = useState('');
 
   const [dronesExpanded, setDronesExpanded] = useState(false);
-  const [docksExpanded, setDocksExpanded] = useState(false);
+  const [baseStationsExpanded, setBaseStationsExpanded] = useState(false);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [addError, setAddError] = useState('');
@@ -44,12 +44,12 @@ const PlanFleetPage = () => {
     setIsLoading(true);
     setPageError('');
     try {
-      const [dronesResp, docksResp] = await Promise.all([
+      const [dronesResp, baseStationsResp] = await Promise.all([
         apiClient.get(`/v1/fleet/drones?project_id=${activeProjectId}`),
-        apiClient.get(`/v1/fleet/docks?project_id=${activeProjectId}`),
+        apiClient.get(`/v1/fleet/base-stations?project_id=${activeProjectId}`),
       ]);
       setDrones(dronesResp?.drones || []);
-      setDocks(docksResp?.docks || []);
+      setBaseStations(baseStationsResp?.base_stations || []);
     } catch (err) {
       setPageError(err?.payload?.error || err?.message || 'Unable to load fleet.');
     } finally {
@@ -84,7 +84,7 @@ const PlanFleetPage = () => {
   }, []);
 
   const handleAdd = useCallback(
-    async ({ mode, drone, dock }) => {
+    async ({ mode, drone, baseStation }) => {
       setAddError('');
       try {
         if (drone) {
@@ -111,27 +111,27 @@ const PlanFleetPage = () => {
                 };
           await apiClient.post('/v1/fleet/drones', dronePayload);
         }
-        if (dock) {
-          const dockPayload =
+        if (baseStation) {
+          const baseStationPayload =
             mode === 'install'
               ? {
                   project_id: activeProjectId,
                   mode: 'install',
-                  dock_identifier: dock.identifier,
-                  dock_model: dock.model,
-                  dock_year: dock.year,
-                  dock_install_date: dock.installDate,
-                  dock_last_inspected: dock.inspectionDate,
-                  dock_last_inspector: dock.inspector,
+                  bs_serial_number: baseStation.serialNumber,
+                  bs_name: baseStation.name,
+                  bs_model: baseStation.model,
+                  bs_install_date: baseStation.installDate,
+                  bs_last_inspected: baseStation.inspectionDate,
+                  bs_last_inspector: baseStation.inspector,
                 }
               : {
                   project_id: activeProjectId,
                   mode: 'service',
-                  dock_identifier: dock.identifier,
-                  dock_last_inspected: dock.inspectionDate,
-                  dock_last_inspector: dock.inspector,
+                  bs_serial_number: baseStation.serialNumber,
+                  bs_last_inspected: baseStation.inspectionDate,
+                  bs_last_inspector: baseStation.inspector,
                 };
-          await apiClient.post('/v1/fleet/docks', dockPayload);
+          await apiClient.post('/v1/fleet/base-stations', baseStationPayload);
         }
         setIsAddOpen(false);
         await fetchFleet();
@@ -157,16 +157,18 @@ const PlanFleetPage = () => {
     [fetchFleet]
   );
 
-  const handleDeactivateDock = useCallback(
-    async dockId => {
+  const handleDeactivateBaseStation = useCallback(
+    async bsId => {
       setPageError('');
       setMenuOpenId(null);
       setMenuOpenType(null);
       try {
-        await apiClient.delete(`/v1/fleet/docks/${dockId}`);
+        await apiClient.delete(`/v1/fleet/base-stations/${bsId}`);
         await fetchFleet();
       } catch (err) {
-        setPageError(err?.payload?.error || err?.message || 'Unable to remove dock.');
+        setPageError(
+          err?.payload?.error || err?.message || 'Unable to remove base station.'
+        );
       }
     },
     [fetchFleet]
@@ -190,17 +192,21 @@ const PlanFleetPage = () => {
     }
   }, []);
 
-  const openDockHistory = useCallback(async dock => {
+  const openBaseStationHistory = useCallback(async baseStation => {
     setMenuOpenId(null);
     setMenuOpenType(null);
     setHistoryLoading(true);
     setHistoryError('');
-    setHistoryModal({ type: 'dock', item: dock, history: [] });
+    setHistoryModal({ type: 'base_station', item: baseStation, history: [] });
     try {
       const resp = await apiClient.get(
-        `/v1/fleet/docks/history?dock_identifier=${encodeURIComponent(dock.dock_identifier)}`
+        `/v1/fleet/base-stations/history?bs_serial_number=${encodeURIComponent(baseStation.bs_serial_number)}`
       );
-      setHistoryModal({ type: 'dock', item: dock, history: resp?.history || [] });
+      setHistoryModal({
+        type: 'base_station',
+        item: baseStation,
+        history: resp?.history || [],
+      });
     } catch (err) {
       setHistoryError(err?.payload?.error || err?.message || 'Unable to load history.');
     } finally {
@@ -245,7 +251,7 @@ const PlanFleetPage = () => {
               <button
                 type="button"
                 onClick={() => setIsAddOpen(true)}
-                title="Add Drone / Dock"
+                title="Add Drone / Base Station"
                 className="btn-primary btn-icon"
               >
                 +
@@ -347,52 +353,52 @@ const PlanFleetPage = () => {
                   </tr>
                 ) : null}
 
-                {/* Docks row */}
+                {/* Base Stations row */}
                 <tr>
                   <td style={{ textAlign: 'center' }}>
                     <button
                       type="button"
-                      onClick={() => setDocksExpanded(prev => !prev)}
+                      onClick={() => setBaseStationsExpanded(prev => !prev)}
                       className="btn-secondary btn-icon-sm"
-                      title="Toggle docks"
+                      title="Toggle base stations"
                       style={{ fontSize: '0.72em' }}
                     >
-                      {docksExpanded ? '▲' : '▼'}
+                      {baseStationsExpanded ? '▲' : '▼'}
                     </button>
                   </td>
-                  <td>Docks</td>
+                  <td>Base Stations</td>
                 </tr>
 
-                {docksExpanded ? (
+                {baseStationsExpanded ? (
                   <tr>
                     <td colSpan={2} style={{ padding: '0 var(--space-md) var(--space-md) var(--space-xl)' }}>
-                      {docks.length ? (
+                      {baseStations.length ? (
                         <table
                           className="data-table"
                           style={{ fontSize: '0.84em', tableLayout: 'fixed', minWidth: 340 }}
                         >
                           <colgroup>
-                            <col style={{ width: '35%' }} />
-                            <col style={{ width: '15%' }} />
+                            <col style={{ width: '30%' }} />
+                            <col style={{ width: '30%' }} />
                             <col />
                             <col style={{ width: 36 }} />
                           </colgroup>
                           <thead>
                             <tr>
+                              <th>Name</th>
                               <th>Model</th>
-                              <th>Year</th>
-                              <th>Dock ID</th>
+                              <th>Serial Number</th>
                               <th />
                             </tr>
                           </thead>
                           <tbody>
-                            {docks.map(dock => (
-                              <tr key={dock.dock_id}>
-                                <td>{dock.dock_model || ''}</td>
-                                <td>{dock.dock_year || ''}</td>
-                                <td>{dock.dock_identifier || ''}</td>
+                            {baseStations.map(baseStation => (
+                              <tr key={baseStation.bs_id}>
+                                <td>{baseStation.bs_name || ''}</td>
+                                <td>{baseStation.bs_model || ''}</td>
+                                <td>{baseStation.bs_serial_number || ''}</td>
                                 <td>
-                                  <KebabMenu id={dock.dock_id} type="dock" />
+                                  <KebabMenu id={baseStation.bs_id} type="base_station" />
                                 </td>
                               </tr>
                             ))}
@@ -405,7 +411,7 @@ const PlanFleetPage = () => {
                             fontSize: '0.85em',
                           }}
                         >
-                          No docks installed
+                          No base stations installed
                         </span>
                       )}
                     </td>
@@ -441,8 +447,8 @@ const PlanFleetPage = () => {
                   const drone = drones.find(d => d.drone_id === menuOpenId);
                   if (drone) openDroneHistory(drone);
                 } else {
-                  const dock = docks.find(d => d.dock_id === menuOpenId);
-                  if (dock) openDockHistory(dock);
+                  const baseStation = baseStations.find(bs => bs.bs_id === menuOpenId);
+                  if (baseStation) openBaseStationHistory(baseStation);
                 }
               }}
             >
@@ -455,7 +461,7 @@ const PlanFleetPage = () => {
                 if (menuOpenType === 'drone') {
                   handleDeactivateDrone(menuOpenId);
                 } else {
-                  handleDeactivateDock(menuOpenId);
+                  handleDeactivateBaseStation(menuOpenId);
                 }
               }}
             >
@@ -501,7 +507,7 @@ const PlanFleetPage = () => {
               </button>
 
               <h3 className="modal-header">
-                {historyModal.type === 'drone' ? 'Drone' : 'Dock'} History
+                {historyModal.type === 'drone' ? 'Drone' : 'Base Station'} History
               </h3>
 
               <div
@@ -524,9 +530,38 @@ const PlanFleetPage = () => {
                   <p style={{ margin: '2px 0 0', fontWeight: 600 }}>
                     {historyModal.type === 'drone'
                       ? historyModal.item.drone_model || '—'
-                      : historyModal.item.dock_model || '—'}
+                      : historyModal.item.bs_model || '—'}
                   </p>
                 </div>
+                {historyModal.type === 'base_station' ? (
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.8em',
+                        color: 'var(--color-text-secondary)',
+                      }}
+                    >
+                      Name
+                    </span>
+                    <p style={{ margin: '2px 0 0', fontWeight: 600 }}>
+                      {historyModal.item.bs_name || '—'}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.8em',
+                        color: 'var(--color-text-secondary)',
+                      }}
+                    >
+                      Year
+                    </span>
+                    <p style={{ margin: '2px 0 0', fontWeight: 600 }}>
+                      {historyModal.item.drone_year || '—'}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <span
                     style={{
@@ -534,27 +569,12 @@ const PlanFleetPage = () => {
                       color: 'var(--color-text-secondary)',
                     }}
                   >
-                    Year
-                  </span>
-                  <p style={{ margin: '2px 0 0', fontWeight: 600 }}>
-                    {historyModal.type === 'drone'
-                      ? historyModal.item.drone_year || '—'
-                      : historyModal.item.dock_year || '—'}
-                  </p>
-                </div>
-                <div>
-                  <span
-                    style={{
-                      fontSize: '0.8em',
-                      color: 'var(--color-text-secondary)',
-                    }}
-                  >
-                    {historyModal.type === 'drone' ? 'Drone ID' : 'Dock ID'}
+                    {historyModal.type === 'drone' ? 'Drone ID' : 'Serial Number'}
                   </span>
                   <p style={{ margin: '2px 0 0', fontWeight: 600 }}>
                     {historyModal.type === 'drone'
                       ? historyModal.item.drone_identifier || '—'
-                      : historyModal.item.dock_identifier || '—'}
+                      : historyModal.item.bs_serial_number || '—'}
                   </p>
                 </div>
               </div>
@@ -595,7 +615,7 @@ const PlanFleetPage = () => {
                       {historyModal.history.map(rec => (
                         <tr
                           key={
-                            historyModal.type === 'drone' ? rec.drone_id : rec.dock_id
+                            historyModal.type === 'drone' ? rec.drone_id : rec.bs_id
                           }
                         >
                           <td>{rec.project_name || ''}</td>
@@ -603,17 +623,17 @@ const PlanFleetPage = () => {
                           <td>
                             {historyModal.type === 'drone'
                               ? formatDate(rec.drone_install_date)
-                              : formatDate(rec.dock_install_date)}
+                              : formatDate(rec.bs_install_date)}
                           </td>
                           <td>
                             {historyModal.type === 'drone'
                               ? formatDate(rec.drone_last_inspected)
-                              : formatDate(rec.dock_last_inspected)}
+                              : formatDate(rec.bs_last_inspected)}
                           </td>
                           <td>
                             {historyModal.type === 'drone'
                               ? rec.drone_last_inspector || ''
-                              : rec.dock_last_inspector || ''}
+                              : rec.bs_last_inspector || ''}
                           </td>
                           {historyModal.type === 'drone' ? (
                             <td>{rec.remote_id || ''}</td>
@@ -646,7 +666,7 @@ const PlanFleetPage = () => {
           }}
           onSubmit={handleAdd}
           activeDrones={drones}
-          activeDocks={docks}
+          activeBaseStations={baseStations}
           error={addError}
         />
       </div>

@@ -22,7 +22,7 @@ const FAILURE_DESCS = [
 
 const EMPTY_PLAN_FORM = {
   droneId: '',
-  dockId: '',
+  bsId: '',
   pilotId: '',
   planId: '',
   airspaceAuthorization: '',
@@ -134,7 +134,12 @@ const SimulateFlightModal = ({ open, projectId, onClose, onSubmit, error }) => {
   const [planForm, setPlanForm] = useState(EMPTY_PLAN_FORM);
   const [flyForm, setFlyForm] = useState(EMPTY_FLY_FORM);
   const [formError, setFormError] = useState('');
-  const [options, setOptions] = useState({ drones: [], docks: [], pilots: [], plans: [] });
+  const [options, setOptions] = useState({
+    drones: [],
+    base_stations: [],
+    pilots: [],
+    plans: [],
+  });
   const [optionsLoading, setOptionsLoading] = useState(false);
 
   useEffect(() => {
@@ -150,8 +155,12 @@ const SimulateFlightModal = ({ open, projectId, onClose, onSubmit, error }) => {
     setOptionsLoading(true);
     apiClient
       .get(`/v1/flights/options?project_id=${projectId}`)
-      .then(resp => setOptions(resp || { drones: [], docks: [], pilots: [], plans: [] }))
-      .catch(() => setOptions({ drones: [], docks: [], pilots: [], plans: [] }))
+      .then(resp =>
+        setOptions(resp || { drones: [], base_stations: [], pilots: [], plans: [] })
+      )
+      .catch(() =>
+        setOptions({ drones: [], base_stations: [], pilots: [], plans: [] })
+      )
       .finally(() => setOptionsLoading(false));
   }, [open, projectId]);
 
@@ -184,7 +193,7 @@ const SimulateFlightModal = ({ open, projectId, onClose, onSubmit, error }) => {
     onSubmit({
       project_id: projectId,
       drone_id: planForm.droneId || null,
-      dock_id: planForm.dockId || null,
+      bs_id: planForm.bsId || null,
       pilot_id: planForm.pilotId,
       plan_id: planForm.planId,
       airspace_authorization: planForm.airspaceAuthorization,
@@ -268,11 +277,11 @@ const SimulateFlightModal = ({ open, projectId, onClose, onSubmit, error }) => {
               ))}
             </FormSelect>
 
-            <FormSelect label="Dock" value={planForm.dockId} onChange={updatePlan('dockId')}>
-              <option value="">— select dock —</option>
-              {options.docks.map(d => (
-                <option key={d.dock_id} value={d.dock_id}>
-                  {d.dock_identifier}
+            <FormSelect label="Base Station" value={planForm.bsId} onChange={updatePlan('bsId')}>
+              <option value="">— select base station —</option>
+              {options.base_stations.map(bs => (
+                <option key={bs.bs_id} value={bs.bs_id}>
+                  {bs.bs_name || bs.bs_serial_number}
                 </option>
               ))}
             </FormSelect>

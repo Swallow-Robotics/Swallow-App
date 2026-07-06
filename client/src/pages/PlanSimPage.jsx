@@ -306,7 +306,7 @@ const PlanSimPage = () => {
                     ? `${formatDate(detailsModal.landing_time)} ${formatTime(detailsModal.landing_time)}`
                     : '—'],
                   ['Drone', detailsModal.drone_identifier || '—'],
-                  ['Dock', detailsModal.dock_identifier || '—'],
+                  ['Base Station', detailsModal.base_station_label || '—'],
                   ['Pilot', detailsModal.pilot_name || '—'],
                   ['Visual Observer', detailsModal.visual_observer || '—'],
                 ].map(([label, value]) => (

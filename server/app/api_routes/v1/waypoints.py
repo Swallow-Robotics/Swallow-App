@@ -11,7 +11,7 @@ and flight_id=NULL.  The full data path is:
 
     drawings → waypoints → photos
 
-No interaction with the flights, plans, drones, docks, or pilots tables.
+No interaction with the flights, plans, drones, base_stations, or pilots tables.
 """
 
 import logging

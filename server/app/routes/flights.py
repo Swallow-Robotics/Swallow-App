@@ -31,7 +31,7 @@ def _require_auth():
 @flights_bp.route("", methods=["GET"])
 @jwt_required
 def list_flights():
-    """List all flights for a project, enriched with drone/dock/pilot/plan names."""
+    """List all flights for a project, enriched with drone/base station/pilot/plan names."""
     try:
         user_id = _require_auth()
     except PermissionError as exc:
@@ -57,7 +57,7 @@ def list_flights():
 
         # Collect related IDs for batch lookups
         drone_ids = list({f["drone_id"] for f in flights if f.get("drone_id")})
-        dock_ids = list({f["dock_id"] for f in flights if f.get("dock_id")})
+        bs_ids = list({f["bs_id"] for f in flights if f.get("bs_id")})
         pilot_ids = list({f["pilot_id"] for f in flights if f.get("pilot_id")})
         plan_ids = list({f["plan_id"] for f in flights if f.get("plan_id")})
 
@@ -71,15 +71,18 @@ def list_flights():
             )
             drones_map = {d["drone_id"]: d["drone_identifier"] for d in d_resp.data or []}
 
-        docks_map = {}
-        if dock_ids:
-            dk_resp = (
-                supabase_client.client.table("docks")
-                .select("dock_id, dock_identifier")
-                .in_("dock_id", dock_ids)
+        base_stations_map = {}
+        if bs_ids:
+            bs_resp = (
+                supabase_client.client.table("base_stations")
+                .select("bs_id, bs_serial_number, bs_name")
+                .in_("bs_id", bs_ids)
                 .execute()
             )
-            docks_map = {d["dock_id"]: d["dock_identifier"] for d in dk_resp.data or []}
+            base_stations_map = {
+                d["bs_id"]: d.get("bs_name") or d.get("bs_serial_number") or ""
+                for d in bs_resp.data or []
+            }
 
         pilots_map = {}
         if pilot_ids:
@@ -103,7 +106,7 @@ def list_flights():
 
         for flight in flights:
             flight["drone_identifier"] = drones_map.get(flight.get("drone_id"), "")
-            flight["dock_identifier"] = docks_map.get(flight.get("dock_id"), "")
+            flight["base_station_label"] = base_stations_map.get(flight.get("bs_id"), "")
             flight["pilot_name"] = pilots_map.get(flight.get("pilot_id"), "")
             flight["plan_name"] = plans_map.get(flight.get("plan_id"), "")
 
@@ -141,7 +144,7 @@ def create_flight():
             "flight_id": str(uuid4()),
             "project_id": project_id,
             "drone_id": payload.get("drone_id") or None,
-            "dock_id": payload.get("dock_id") or None,
+            "bs_id": payload.get("bs_id") or None,
             "pilot_id": payload.get("pilot_id") or None,
             "plan_id": payload.get("plan_id") or None,
             "airspace_authorization": (payload.get("airspace_authorization") or "").strip() or None,
@@ -169,7 +172,7 @@ def create_flight():
 @flights_bp.route("/options", methods=["GET"])
 @jwt_required
 def flight_options():
-    """Return drones, docks, pilots, and plans available for a project."""
+    """Return drones, base stations, pilots, and plans available for a project."""
     try:
         user_id = _require_auth()
     except PermissionError as exc:
@@ -191,11 +194,11 @@ def flight_options():
             .eq("active_drone", True)
             .execute()
         )
-        docks_resp = (
-            supabase_client.client.table("docks")
-            .select("dock_id, dock_identifier")
+        base_stations_resp = (
+            supabase_client.client.table("base_stations")
+            .select("bs_id, bs_serial_number, bs_name")
             .eq("project_id", project_id)
-            .eq("active_dock", True)
+            .eq("active_bs", True)
             .execute()
         )
         pilots_resp = (
@@ -213,7 +216,7 @@ def flight_options():
 
         return jsonify({
             "drones": drones_resp.data or [],
-            "docks": docks_resp.data or [],
+            "base_stations": base_stations_resp.data or [],
             "pilots": pilots_resp.data or [],
             "plans": plans_resp.data or [],
         })

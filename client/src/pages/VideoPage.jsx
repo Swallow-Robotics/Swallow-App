@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context';
 import apiClient from '../services/api';
 import HlsVideoPlayer from '../components/video/HlsVideoPlayer';
-import DockVideoModal from '../components/video/DockVideoModal';
+import BaseStationVideoModal from '../components/video/BaseStationVideoModal';
 
 const PREVIEW_HEIGHT = '45vh';
 
@@ -12,27 +12,29 @@ const VideoPage = () => {
     activeProject?.project_id ||
     (typeof activeProject === 'string' ? activeProject : null);
 
-  const [docks, setDocks] = useState([]);
+  const [baseStations, setBaseStations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [expandedDock, setExpandedDock] = useState(null);
+  const [expandedBaseStation, setExpandedBaseStation] = useState(null);
 
   useEffect(() => {
     if (!activeProjectId) {
-      setDocks([]);
+      setBaseStations([]);
       return undefined;
     }
     let cancelled = false;
     setIsLoading(true);
     setError('');
     apiClient
-      .get(`/v1/fleet/docks?project_id=${activeProjectId}`)
+      .get(`/v1/fleet/base-stations?project_id=${activeProjectId}`)
       .then(data => {
-        if (!cancelled) setDocks(data?.docks || []);
+        if (!cancelled) setBaseStations(data?.base_stations || []);
       })
       .catch(err => {
         if (!cancelled)
-          setError(err?.payload?.error || err?.message || 'Unable to load dock video.');
+          setError(
+            err?.payload?.error || err?.message || 'Unable to load base station video.'
+          );
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -42,8 +44,10 @@ const VideoPage = () => {
     };
   }, [activeProjectId]);
 
-  // list_docks already scopes to project_id + active_dock=true; just need a stream url.
-  const docksWithVideo = docks.filter(d => d.video_url);
+  const baseStationsWithVideo = baseStations.filter(bs => bs.video_url);
+
+  const getDisplayName = bs =>
+    bs.bs_name || bs.bs_serial_number || bs.bs_model || 'Base Station';
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
@@ -56,13 +60,15 @@ const VideoPage = () => {
       </div>
 
       {!activeProjectId ? (
-        <p className="page-empty">Select a project to view dock video.</p>
+        <p className="page-empty">Select a project to view base station video.</p>
       ) : error ? (
         <div className="page-error">{error}</div>
       ) : isLoading ? (
         <div className="page-empty">Loading...</div>
-      ) : docksWithVideo.length === 0 ? (
-        <p className="page-empty">No active dock video available for this project.</p>
+      ) : baseStationsWithVideo.length === 0 ? (
+        <p className="page-empty">
+          No active base station video available for this project.
+        </p>
       ) : (
         <div
           style={{
@@ -72,17 +78,17 @@ const VideoPage = () => {
             gap: 'var(--space-lg)',
           }}
         >
-          {docksWithVideo.map(dock => (
+          {baseStationsWithVideo.map(baseStation => (
             <div
-              key={dock.dock_id}
+              key={baseStation.bs_id}
               className="surface-card surface-card--flush"
               role="button"
               tabIndex={0}
-              onClick={() => setExpandedDock(dock)}
+              onClick={() => setExpandedBaseStation(baseStation)}
               onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setExpandedDock(dock);
+                  setExpandedBaseStation(baseStation);
                 }
               }}
               style={{ cursor: 'pointer', flex: '0 0 auto', maxWidth: '90vw' }}
@@ -94,12 +100,10 @@ const VideoPage = () => {
                   borderBottom: '1px solid var(--color-border)',
                 }}
               >
-                <h6 style={{ margin: 0 }}>
-                  {dock.dock_name || dock.dock_identifier || dock.dock_model || 'Dock'}
-                </h6>
+                <h6 style={{ margin: 0 }}>{getDisplayName(baseStation)}</h6>
               </div>
               <HlsVideoPlayer
-                src={dock.video_url}
+                src={baseStation.video_url}
                 muted
                 autoPlay
                 playsInline
@@ -110,9 +114,9 @@ const VideoPage = () => {
         </div>
       )}
 
-      <DockVideoModal
-        dock={expandedDock}
-        onClose={() => setExpandedDock(null)}
+      <BaseStationVideoModal
+        baseStation={expandedBaseStation}
+        onClose={() => setExpandedBaseStation(null)}
       />
     </div>
   );

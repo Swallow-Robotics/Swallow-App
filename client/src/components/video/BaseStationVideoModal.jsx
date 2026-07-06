@@ -3,8 +3,14 @@ import HlsVideoPlayer from './HlsVideoPlayer';
 
 const HEADER_HEIGHT = 44;
 
-const DockVideoModal = ({ dock, onClose }) => {
-  if (!dock) return null;
+const BaseStationVideoModal = ({ baseStation, onClose }) => {
+  if (!baseStation) return null;
+
+  const displayName =
+    baseStation.bs_name ||
+    baseStation.bs_serial_number ||
+    baseStation.bs_model ||
+    'Base Station';
 
   return (
     <div
@@ -37,9 +43,7 @@ const DockVideoModal = ({ dock, onClose }) => {
             flexShrink: 0,
           }}
         >
-          <h6 style={{ margin: 0 }}>
-            {dock.dock_name || dock.dock_identifier || dock.dock_model || 'Dock'}
-          </h6>
+          <h6 style={{ margin: 0 }}>{displayName}</h6>
           <button
             type="button"
             onClick={onClose}
@@ -58,7 +62,7 @@ const DockVideoModal = ({ dock, onClose }) => {
           </button>
         </div>
         <HlsVideoPlayer
-          src={dock.video_url}
+          src={baseStation.video_url}
           controls
           autoPlay
           playsInline
@@ -70,4 +74,4 @@ const DockVideoModal = ({ dock, onClose }) => {
   );
 };
 
-export default DockVideoModal;
+export default BaseStationVideoModal;
