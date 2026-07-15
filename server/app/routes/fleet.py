@@ -53,10 +53,9 @@ def _parse_date(date_str):
     return s
 
 
-def _enrich_with_project_org(records, project_key, org_key):
-    """Attach project_name and org_name to each record dict."""
+def _enrich_with_project_org(records, project_key, org_key=None):
+    """Attach project_name (and org_name, if org_key is given) to each record dict."""
     project_ids = list({r[project_key] for r in records if r.get(project_key)})
-    org_ids = list({r[org_key] for r in records if r.get(org_key)})
 
     projects_map = {}
     if project_ids:
@@ -69,18 +68,21 @@ def _enrich_with_project_org(records, project_key, org_key):
         projects_map = {p["project_id"]: p["project_name"] for p in resp.data or []}
 
     orgs_map = {}
-    if org_ids:
-        resp = (
-            supabase_client.client.table("organizations")
-            .select("org_id, org_name")
-            .in_("org_id", org_ids)
-            .execute()
-        )
-        orgs_map = {o["org_id"]: o["org_name"] for o in resp.data or []}
+    if org_key:
+        org_ids = list({r[org_key] for r in records if r.get(org_key)})
+        if org_ids:
+            resp = (
+                supabase_client.client.table("organizations")
+                .select("org_id, org_name")
+                .in_("org_id", org_ids)
+                .execute()
+            )
+            orgs_map = {o["org_id"]: o["org_name"] for o in resp.data or []}
 
     for rec in records:
         rec["project_name"] = projects_map.get(rec.get(project_key), "")
-        rec["org_name"] = orgs_map.get(rec.get(org_key), "")
+        if org_key:
+            rec["org_name"] = orgs_map.get(rec.get(org_key), "")
 
     return records
 
@@ -296,7 +298,7 @@ def base_station_history():
             .order("bs_last_inspected", desc=True)
             .execute()
         )
-        records = _enrich_with_project_org(resp.data or [], "project_id", "org_id")
+        records = _enrich_with_project_org(resp.data or [], "project_id")
         return jsonify({"history": records})
     except Exception as exc:
         logger.error("base_station_history error: %s", exc)
