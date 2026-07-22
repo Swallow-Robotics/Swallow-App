@@ -259,6 +259,26 @@ class R2Client:
             print(f"Error generating presigned URL: {e}")
             return None
 
+    def download_bytes(self, key: str) -> Optional[bytes]:
+        """
+        Download raw bytes for an object in R2 storage.
+
+        Args:
+            key (str): Object key/path in bucket
+
+        Returns:
+            Optional[bytes]: File bytes, or None if the object could not be read.
+        """
+        if not self.client:
+            return None
+
+        try:
+            response = self.client.get_object(Bucket=self.bucket_name, Key=key)
+            return response["Body"].read()
+        except ClientError as e:
+            print(f"Error downloading file from R2: {e}")
+            return None
+
     def get_public_url(self, key: str) -> Optional[str]:
         """
         Get public URL for R2 object (alias for get_file_url for clarity).

@@ -15,6 +15,7 @@ import DrawingCanvas from '../components/drawings/DrawingCanvas';
 import WaypointPhotosModal from '../components/map/WaypointPhotosModal';
 import EditLocationModal from '../components/map/EditLocationModal';
 import UploadPhotosModal from '../components/photo/UploadPhotosModal';
+import PdfExportModal from '../components/photo/PdfExportModal';
 import PhotoMapLive from '../PhotoMapLive';
 import PhotoLibraryPage from './PhotoLibraryPage';
 import {
@@ -194,6 +195,7 @@ const OptionsPopup = ({
   onAlignDrawing,
   onAddWaypoint,
   onLibrary,
+  onPdfExport,
   onClose,
 }) => {
   const popupRef = useRef(null);
@@ -237,6 +239,9 @@ const OptionsPopup = ({
       ) : null}
       <button type="button" className="btn-menu-item" onClick={onLibrary}>
         Photo Library
+      </button>
+      <button type="button" className="btn-menu-item" onClick={onPdfExport}>
+        PDF Export
       </button>
     </div>
   );
@@ -316,6 +321,7 @@ const PhotosPage = () => {
   const [drawingsModalOpen, setDrawingsModalOpen] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [pdfExportOpen, setPdfExportOpen] = useState(false);
 
   // Site plan only
   const [alignModalOpen, setAlignModalOpen] = useState(false);
@@ -925,6 +931,10 @@ const PhotosPage = () => {
                     setOptionsOpen(false);
                     setSubView('library');
                   }}
+                  onPdfExport={() => {
+                    setOptionsOpen(false);
+                    setPdfExportOpen(true);
+                  }}
                   onClose={() => setOptionsOpen(false)}
                 />
               ) : null}
@@ -999,6 +1009,14 @@ const PhotosPage = () => {
             setUploadDrawingId(null);
           }}
           onUploaded={fetchFloorWaypoints}
+        />
+
+        <PdfExportModal
+          open={pdfExportOpen}
+          projectId={projectId}
+          drawingId={activeDrawingId}
+          isSitePlan={isSitePlan}
+          onClose={() => setPdfExportOpen(false)}
         />
       </div>
     </>

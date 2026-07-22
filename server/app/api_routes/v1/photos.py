@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 import os
 import math
+import secrets
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 import io
@@ -953,6 +954,7 @@ def manual_upload_photo():
         "thumbnail_r2_path": thumbnail_key,
         "thumbnail_r2_url": thumbnail_url,
         "active_photo": True,
+        "public_token": secrets.token_urlsafe(16),
     }
     if capture_method_val:
         row["capture_method"] = capture_method_val
@@ -1183,6 +1185,7 @@ def floor_upload_photo():
         "thumbnail_r2_path": thumbnail_key,
         "thumbnail_r2_url": thumbnail_url,
         "active_photo": True,
+        "public_token": secrets.token_urlsafe(16),
     }
 
     try:

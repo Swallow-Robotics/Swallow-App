@@ -6,11 +6,36 @@ Geo (lng, lat) → pixel (x, y):
   y = d * lng + e * lat + f
 """
 
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 
 class AffineTransformError(Exception):
     """Raised when an affine transform cannot be computed."""
+
+
+_TRANSFORM_KEYS = (
+    "transform_a",
+    "transform_b",
+    "transform_c",
+    "transform_d",
+    "transform_e",
+    "transform_f",
+)
+
+
+def geo_to_pixel(drawing: Dict, lat: float, lng: float) -> Optional[Tuple[float, float]]:
+    """
+    Apply a drawing's stored affine transform to convert geo coordinates to
+    pixel coordinates. Mirrors the client-side geoToPixel in
+    client/src/utils/drawingAffineTransform.js so waypoint markers land in the
+    same relative position on both the Photos page and PDF exports.
+    """
+    if any(drawing.get(key) is None for key in _TRANSFORM_KEYS):
+        return None
+    a, b, c, d, e, f = (float(drawing[key]) for key in _TRANSFORM_KEYS)
+    x = a * lng + b * lat + c
+    y = d * lng + e * lat + f
+    return x, y
 
 
 def _solve_linear_system_3x3(
