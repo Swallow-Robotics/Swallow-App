@@ -208,8 +208,9 @@
   text-overflow: ellipsis;
 }
 
-/* Narrow / portrait phones: wrap the right-side callouts onto their own row
-   instead of overflowing or squeezing the logo out of view. */
+/* Narrow / portrait phones: stack the right-side callouts under the logo,
+   one per line, instead of wrapping two-up (which crowds and truncates
+   text). Landscape phones and desktop are untouched by this breakpoint. */
 @media (max-width: 640px) {
   .App-header {
     padding: var(--space-sm) 0;
@@ -221,14 +222,21 @@
   }
 
   .App-header__right {
-    flex-wrap: wrap;
     flex-basis: 100%;
-    justify-content: flex-start;
-    gap: var(--space-sm);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-xs);
   }
 
   .header-project-callout {
-    max-width: 42vw;
+    max-width: 100%;
+  }
+
+  .header-project-callout__name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    word-break: break-word;
   }
 }
 
