@@ -42,22 +42,24 @@ def ensure_public_token(photo_id: str) -> Optional[str]:
 
 
 def _resolve_waypoint_and_project(waypoint_id: Optional[str]) -> Dict[str, Any]:
-    """Look up waypoint_name and project_id via drawings (floor plan path)."""
+    """Look up waypoint_name, action, and project_id (floor plan path)."""
+    empty = {"waypoint_name": None, "waypoint_action": None, "project_id": None}
     if not waypoint_id:
-        return {"waypoint_name": None, "project_id": None}
+        return empty
 
     wp_resp = (
         supabase_client.client.table(WAYPOINTS_TABLE)
-        .select("waypoint_name, drawing_id")
+        .select("waypoint_name, action, drawing_id")
         .eq("waypoint_id", waypoint_id)
         .limit(1)
         .execute()
     )
     wp_rows = wp_resp.data or []
     if not wp_rows:
-        return {"waypoint_name": None, "project_id": None}
+        return empty
 
     waypoint_name = wp_rows[0].get("waypoint_name")
+    waypoint_action = wp_rows[0].get("action")
     drawing_id = wp_rows[0].get("drawing_id")
     project_id = None
     if drawing_id:
@@ -72,7 +74,11 @@ def _resolve_waypoint_and_project(waypoint_id: Optional[str]) -> Dict[str, Any]:
         if drw_rows:
             project_id = drw_rows[0].get("project_id")
 
-    return {"waypoint_name": waypoint_name, "project_id": project_id}
+    return {
+        "waypoint_name": waypoint_name,
+        "waypoint_action": waypoint_action,
+        "project_id": project_id,
+    }
 
 
 def _resolve_project_via_flight(flight_id: Optional[str]) -> Optional[str]:
@@ -110,6 +116,7 @@ def get_active_photo_by_token(token: str) -> Optional[Dict[str, Any]]:
     photo = rows[0]
     meta = _resolve_waypoint_and_project(photo.get("waypoint_id"))
     photo["waypoint_name"] = meta["waypoint_name"]
+    photo["waypoint_action"] = meta["waypoint_action"]
     photo["project_id"] = meta["project_id"] or _resolve_project_via_flight(
         photo.get("flight_id")
     )
