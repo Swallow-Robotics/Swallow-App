@@ -208,6 +208,30 @@
   text-overflow: ellipsis;
 }
 
+/* Narrow / portrait phones: wrap the right-side callouts onto their own row
+   instead of overflowing or squeezing the logo out of view. */
+@media (max-width: 640px) {
+  .App-header {
+    padding: var(--space-sm) 0;
+  }
+
+  .App-header__inner {
+    flex-wrap: wrap;
+    row-gap: var(--space-xs);
+  }
+
+  .App-header__right {
+    flex-wrap: wrap;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    gap: var(--space-sm);
+  }
+
+  .header-project-callout {
+    max-width: 42vw;
+  }
+}
+
 /* ===========================
    SECONDARY NAVIGATION BANNER
    =========================== */
