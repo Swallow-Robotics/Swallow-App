@@ -113,7 +113,7 @@ yarn lint:fix        # Auto-fix issues
 
 ## Deployment architecture (production)
 
-- **Frontend**: React static site on **GitHub Pages** (build output only)
+- **Frontend**: React static site on **Vercel** (custom domain `https://swallow-ctr.com` via Cloudflare DNS)
 - **Backend**: Flask API on **Render**
 - **Auth**: Supabase Auth (frontend uses Supabase JS; backend validates JWTs)
 - **Database**: Supabase Postgres (backend uses service role credentials)
@@ -121,7 +121,7 @@ yarn lint:fix        # Auto-fix issues
 
 Frontend and backend are deployed independently.
 
-### Frontend build and deploy (GitHub Pages)
+### Frontend build and deploy (Vercel)
 
 ```bash
 cd client
@@ -129,19 +129,14 @@ yarn install --frozen-lockfile
 yarn build
 ```
 
-Deploy **only** `client/build/` to GitHub Pages. All `REACT_APP_*` env vars must be set at build time (they are baked into the static bundle).
+All `REACT_APP_*` env vars must be set in the Vercel project (they are baked into the static bundle at build time).
 
 Build-time env vars:
 
 - `REACT_APP_API_BASE_URL=https://swallow-app.onrender.com`
 - `REACT_APP_SUPABASE_URL=<your supabase url>`
 - `REACT_APP_SUPABASE_ANON_KEY=<your anon key>`
-
-**RECOMMENDED**: Use the automated deployment script:
-
-```bash
-./scripts/deploy-frontend.sh
-```
+- `REACT_APP_R2_PUBLIC_BASE_URL=<your r2 public url>` (optional)
 
 ### Backend deploy (Render)
 
@@ -157,7 +152,8 @@ Required env vars:
 
 - `APP_ENV=production`
 - `SECRET_KEY=<random>`
-- `FRONTEND_ORIGIN=swallow-portal-swallow-portal.vercel.app`
+- `FRONTEND_ORIGIN=https://swallow-ctr.com` (add `,https://www.swallow-ctr.com` if you serve www)
+- `PUBLIC_APP_ORIGIN=https://swallow-ctr.com`
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
 - `R2_ACCOUNT_ID` (or `R2_ENDPOINT_URL`), `R2_PUBLIC_BASE_URL`

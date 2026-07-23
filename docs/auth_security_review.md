@@ -33,6 +33,6 @@
 
 ## CORS configuration review
 
-- Allowed origins default to local dev ports, but production deploys must add the real frontend domain via `FRONTEND_ORIGIN`. Avoid wildcard origins.
+- Allowed origins default to local dev ports, but production deploys must add the real frontend domain via `FRONTEND_ORIGIN` (e.g. `https://swallow-ctr.com`). Avoid wildcard origins.
 - When adding new origins, update `docs/authentication.md` and `.env.example` instructions so future contributors know which env variable to tweak.
 - Always pair CORS with authentication (don’t rely solely on CORS for security) and avoid echoing sensitive headers in error responses.

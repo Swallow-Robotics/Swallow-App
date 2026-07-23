@@ -8,7 +8,7 @@ export function getApiOrigin() {
   // ship a bundle that points at localhost.
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
-      'Missing REACT_APP_API_BASE_URL. Set it at build time (e.g. REACT_APP_API_BASE_URL=https://swallow-skyer-v1.onrender.com).'
+      'Missing REACT_APP_API_BASE_URL. Set it at build time (e.g. REACT_APP_API_BASE_URL=https://swallow-app.onrender.com).'
     );
   }
 
