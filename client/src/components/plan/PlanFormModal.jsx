@@ -11,8 +11,18 @@ const WAYPOINT_ACTIONS = [
   { value: 'photo_360', label: '360 Photo' },
 ];
 
-const LETTERS = 'ABCDEFGHIJ';
-const MAX_WAYPOINTS = 10;
+const MAX_WAYPOINTS = 50;
+
+/** Spreadsheet-style default names: A–Z, then AA, AB, ... */
+function waypointLetter(index) {
+  let label = '';
+  let i = index;
+  do {
+    label = String.fromCharCode(65 + (i % 26)) + label;
+    i = Math.floor(i / 26) - 1;
+  } while (i >= 0);
+  return label;
+}
 
 let _localIdCounter = 0;
 const nextLocalId = () => ++_localIdCounter;
@@ -32,7 +42,7 @@ function makeGhost(letter) {
 
 function buildInitialWaypoints(existingWaypoints) {
   if (!existingWaypoints?.length) {
-    return [makeGhost(LETTERS[0])];
+    return [makeGhost(waypointLetter(0))];
   }
   const active = existingWaypoints.map(wp => ({
     localId: nextLocalId(),
@@ -45,7 +55,7 @@ function buildInitialWaypoints(existingWaypoints) {
     isGhost: false,
   }));
   if (active.length < MAX_WAYPOINTS) {
-    active.push(makeGhost(LETTERS[active.length] || ''));
+    active.push(makeGhost(waypointLetter(active.length)));
   }
   return active;
 }
@@ -71,7 +81,7 @@ const PlanFormModal = ({ open, onClose, onSubmit, initialPlan, mode, error }) =>
       const hasGhost = filtered.some(wp => wp.isGhost);
       const activeCount = filtered.filter(wp => !wp.isGhost).length;
       if (!hasGhost && activeCount < MAX_WAYPOINTS) {
-        return [...filtered, makeGhost(LETTERS[activeCount] || '')];
+        return [...filtered, makeGhost(waypointLetter(activeCount))];
       }
       return filtered;
     });
@@ -115,7 +125,7 @@ const PlanFormModal = ({ open, onClose, onSubmit, initialPlan, mode, error }) =>
       );
       const newActiveCount = updated.filter(wp => !wp.isGhost).length;
       if (newActiveCount < MAX_WAYPOINTS && !updated.some(wp => wp.isGhost)) {
-        return [...updated, makeGhost(LETTERS[newActiveCount] || '')];
+        return [...updated, makeGhost(waypointLetter(newActiveCount))];
       }
       return updated;
     });
@@ -161,7 +171,16 @@ const PlanFormModal = ({ open, onClose, onSubmit, initialPlan, mode, error }) =>
 
   return (
     <div role="dialog" aria-modal="true" className="modal-overlay">
-      <div className="modal-body" style={{ maxWidth: 780, width: '96%', position: 'relative' }}>
+      <div
+        className="modal-body"
+        style={{
+          maxWidth: 780,
+          width: '96%',
+          position: 'relative',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+        }}
+      >
         <button
           type="button"
           onClick={onClose}
@@ -304,7 +323,7 @@ const PlanFormModal = ({ open, onClose, onSubmit, initialPlan, mode, error }) =>
                           value={wp.action}
                           onChange={e => onChange('action', e.target.value)}
                           className="form-select"
-                          style={{ width: '100%', padding: '2px 4px' }}
+                          style={{ width: '100%', padding: '2px 20px 2px 4px' }}
                         >
                           {WAYPOINT_ACTIONS.map(a => (
                             <option key={a.value} value={a.value}>
