@@ -32,8 +32,7 @@ import {
   ArchivedProjectsPage,
   ProjectMembersPage,
   DashboardPage,
-  WeatherPage,
-  VideoPage,
+  SitePage,
 } from "./pages";
 
 import PhotoViewerPage from "./pages/PhotoViewerPage";
@@ -146,13 +145,8 @@ const Header = () => {
                   </NavLink>
                 )}
                 {user && hasActiveProject && (
-                  <NavLink to="/view/weather" className={headerNavTabClass}>
-                    Weather
-                  </NavLink>
-                )}
-                {user && hasActiveProject && (
-                  <NavLink to="/view/video" className={headerNavTabClass}>
-                    Video
+                  <NavLink to="/view/site" className={headerNavTabClass}>
+                    Site
                   </NavLink>
                 )}
               </>
@@ -214,13 +208,8 @@ const ViewNav = () => {
           </NavLink>
         )}
         {hasActiveProject && (
-          <NavLink to="/view/weather" className={navLinkClass}>
-            Weather
-          </NavLink>
-        )}
-        {hasActiveProject && (
-          <NavLink to="/view/video" className={navLinkClass}>
-            Video
+          <NavLink to="/view/site" className={navLinkClass}>
+            Site
           </NavLink>
         )}
 
@@ -394,20 +383,20 @@ export function AppRoutes() {
               }
             />
             <Route
-              path="weather"
+              path="site"
               element={
                 <AuthLayout>
-                  <WeatherPage />
+                  <SitePage />
                 </AuthLayout>
               }
             />
             <Route
+              path="weather"
+              element={<Navigate to="/view/site" replace />}
+            />
+            <Route
               path="video"
-              element={
-                <AuthLayout>
-                  <VideoPage />
-                </AuthLayout>
-              }
+              element={<Navigate to="/view/site" replace />}
             />
             <Route
               path="projects"
