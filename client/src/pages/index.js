@@ -2,6 +2,8 @@ export { default as LoginPage } from './LoginPage';
 export { default as RegisterPage } from './RegisterPage';
 export { default as PlanProjectsPage } from './PlanProjectsPage';
 export { default as PlanTestPage } from './PlanTestPage';
+export { default as PlanCreatePage } from './PlanCreatePage';
+export { default as PlanEditPage } from './PlanEditPage';
 export { default as PhotosPage } from './PhotosPage';
 export { default as PhotoLibraryPage } from './PhotoLibraryPage';
 export { default as PhotosDatePage } from './PhotosDatePage';

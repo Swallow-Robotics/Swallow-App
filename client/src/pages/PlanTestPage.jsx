@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context';
 import apiClient from '../services/api';
 import PlanFormModal from '../components/plan/PlanFormModal';
 
@@ -21,9 +22,9 @@ const formatLastFlight = dateStr => {
 
 const PlanTestPage = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { activeProject } = useAuth();
 
-  const activeProjectId = searchParams.get('project_id') || null;
+  const activeProjectId = activeProject?.project_id || activeProject || null;
 
   const [plans, setPlans] = useState([]);
   const [isLoading, setIsLoading] = useState(false);

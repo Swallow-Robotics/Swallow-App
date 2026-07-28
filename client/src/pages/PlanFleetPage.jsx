@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context';
 import apiClient from '../services/api';
 import FleetAddModal from '../components/fleet/FleetAddModal';
 
@@ -16,9 +17,9 @@ const formatDate = dateStr => {
 
 const PlanFleetPage = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { activeProject } = useAuth();
 
-  const activeProjectId = searchParams.get('project_id') || null;
+  const activeProjectId = activeProject?.project_id || activeProject || null;
 
   const [drones, setDrones] = useState([]);
   const [baseStations, setBaseStations] = useState([]);

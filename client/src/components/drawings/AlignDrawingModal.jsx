@@ -549,7 +549,9 @@ const AlignDrawingModal = ({
           ✕
         </button>
 
-        <h3 className="modal-header">Align Drawing</h3>
+        <h3 className="modal-header" style={{ alignSelf: 'stretch', textAlign: 'center' }}>
+          Align Drawing
+        </h3>
 
         {drawing.aligned ? (
           <p className="align-drawing-modal__status align-drawing-modal__status--success">

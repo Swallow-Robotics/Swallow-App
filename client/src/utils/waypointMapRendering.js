@@ -1,8 +1,9 @@
 /**
  * Marker rendering for the View → Map page.
  *
- * Renders a universal photo marker for every waypoint of the active plan plus
- * the draggable/editable project-location pin. Kept separate from
+ * Renders a universal photo marker for each waypoint that has photos (caller
+ * should pass the filtered list from useActivePlanWaypoints) plus the
+ * draggable/editable project-location pin. Kept separate from
  * mapMarkerRendering.js (used by the Fly map) so each page can evolve
  * independently.
  */

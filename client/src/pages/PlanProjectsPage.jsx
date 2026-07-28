@@ -6,7 +6,9 @@ import PlanCreateProjectModal from '../components/projects/PlanCreateProjectModa
 import PlanEditProjectModal from '../components/projects/PlanEditProjectModal';
 
 const PlanProjectsPage = () => {
-  const { projects, refreshProjects, isLoading, user } = useAuth();
+  const { projects, activeProject, setActiveProject, refreshProjects, isLoading, user } =
+    useAuth();
+  const activeProjectId = activeProject?.project_id || activeProject || null;
   const [pageError, setPageError] = useState('');
   const [createError, setCreateError] = useState('');
   const [editError, setEditError] = useState('');
@@ -33,6 +35,13 @@ const PlanProjectsPage = () => {
   const visibleProjects = useMemo(
     () => (projects || []).filter(p => !p.archived),
     [projects]
+  );
+
+  const handleActivate = useCallback(
+    project => {
+      setActiveProject(project);
+    },
+    [setActiveProject]
   );
 
   const handleCreate = useCallback(
@@ -150,8 +159,18 @@ const PlanProjectsPage = () => {
                 {visibleProjects.map(project => {
                   const isOwner =
                     (project.role || '').toLowerCase() === 'owner';
+                  const isActive = project.project_id === activeProjectId;
                   return (
-                    <tr key={project.project_id}>
+                    <tr
+                      key={project.project_id}
+                      onClick={() => handleActivate(project)}
+                      style={{
+                        cursor: 'pointer',
+                        background: isActive
+                          ? 'var(--color-surface-secondary)'
+                          : undefined,
+                      }}
+                    >
                       <td>{project.project_name || ''}</td>
                       <td>{project.org_name || ''}</td>
                       <td>
@@ -260,9 +279,12 @@ const PlanProjectsPage = () => {
               type="button"
               className="btn-menu-item"
               onClick={() => {
-                const projectId = menuOpenId;
+                const project = visibleProjects.find(
+                  p => p.project_id === menuOpenId
+                );
                 setMenuOpenId(null);
-                navigate(`/plan/test?project_id=${projectId}`);
+                handleActivate(project);
+                navigate('/plan/test');
               }}
             >
               Test
@@ -271,9 +293,12 @@ const PlanProjectsPage = () => {
               type="button"
               className="btn-menu-item"
               onClick={() => {
-                const projectId = menuOpenId;
+                const project = visibleProjects.find(
+                  p => p.project_id === menuOpenId
+                );
                 setMenuOpenId(null);
-                navigate(`/plan/fleet?project_id=${projectId}`);
+                handleActivate(project);
+                navigate('/plan/fleet');
               }}
             >
               Fleet
@@ -282,9 +307,12 @@ const PlanProjectsPage = () => {
               type="button"
               className="btn-menu-item"
               onClick={() => {
-                const projectId = menuOpenId;
+                const project = visibleProjects.find(
+                  p => p.project_id === menuOpenId
+                );
                 setMenuOpenId(null);
-                navigate(`/plan/sim?project_id=${projectId}`);
+                handleActivate(project);
+                navigate('/plan/sim');
               }}
             >
               SIM

@@ -211,6 +211,23 @@ const DrawingPanZoomSurface = ({
     [containerSize, nativeW, nativeH, transform, baseScale],
   );
 
+  // Converts a live client (viewport) coordinate to a native image pixel,
+  // used by draggable marker overlays (e.g. Plan waypoints) to track the
+  // pointer during a drag without duplicating the pan/zoom math.
+  const toImage = useCallback(
+    (clientX, clientY) =>
+      clientToImagePixel(
+        clientX,
+        clientY,
+        containerRef.current,
+        nativeW,
+        nativeH,
+        transformRef.current,
+        baseScaleRef.current,
+      ),
+    [nativeW, nativeH],
+  );
+
   return (
     <div
       ref={containerRef}
@@ -268,7 +285,7 @@ const DrawingPanZoomSurface = ({
             pointerEvents: 'none',
           }}
         >
-          {fixedOverlay({ toScreen, totalScale })}
+          {fixedOverlay({ toScreen, totalScale, toImage })}
         </div>
       ) : null}
     </div>

@@ -7,7 +7,6 @@ import {
   Link,
   NavLink,
   useLocation,
-  useSearchParams,
 } from "react-router-dom";
 
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -43,6 +42,8 @@ import AuthCallbackPage from "./pages/AuthCallbackPage";
 import EmailConfirmedPage from "./pages/EmailConfirmedPage";
 import PlanProjectsPage from "./pages/PlanProjectsPage";
 import PlanTestPage from "./pages/PlanTestPage";
+import PlanCreatePage from "./pages/PlanCreatePage";
+import PlanEditPage from "./pages/PlanEditPage";
 import PlanFleetPage from "./pages/PlanFleetPage";
 import PlanSimPage from "./pages/PlanSimPage";
 import HomePage from "./pages/HomePage";
@@ -226,12 +227,10 @@ const ViewNav = () => {
 };
 
 const PlanNav = () => {
-  const { user, projects } = useAuth();
-  const [searchParams] = useSearchParams();
-  const projectId = searchParams.get("project_id") || null;
+  const { user, activeProject } = useAuth();
+  const hasActiveProject = !!(activeProject?.id || activeProject);
   const projectName =
-    (projects || []).find((p) => p.project_id === projectId)?.project_name ||
-    "";
+    typeof activeProject === "string" ? "" : activeProject?.project_name || "";
 
   if (!user) return null;
 
@@ -241,6 +240,16 @@ const PlanNav = () => {
         <NavLink to="/plan/projects" className={navLinkClass}>
           Projects
         </NavLink>
+        {hasActiveProject && (
+          <NavLink to="/plan/create" className={navLinkClass}>
+            Create
+          </NavLink>
+        )}
+        {hasActiveProject && (
+          <NavLink to="/plan/edit" className={navLinkClass}>
+            Edit
+          </NavLink>
+        )}
         {projectName ? (
           <div className="App-subnav__project" title={projectName}>
             <span className="App-subnav__projectLabel">Project</span>
@@ -464,6 +473,26 @@ export function AppRoutes() {
                   <AuthLayout>
                     <PlanSimPage />
                   </AuthLayout>
+                </InternalPortalRoute>
+              }
+            />
+            <Route
+              path="create"
+              element={
+                <InternalPortalRoute>
+                  <AuthGuard>
+                    <PlanCreatePage />
+                  </AuthGuard>
+                </InternalPortalRoute>
+              }
+            />
+            <Route
+              path="edit"
+              element={
+                <InternalPortalRoute>
+                  <AuthGuard>
+                    <PlanEditPage />
+                  </AuthGuard>
                 </InternalPortalRoute>
               }
             />

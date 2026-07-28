@@ -42,3 +42,31 @@ export function waypointsToPixelPositions(drawing, waypoints) {
     })
     .filter(Boolean);
 }
+
+/**
+ * Inverse of geoToPixel: pixel (x, y) → lat/lng using the drawing's stored
+ * affine coefficients.
+ *   [x - c]   [a b] [lng]
+ *   [y - f] = [d e] [lat]
+ * so [lng, lat] = inverse([[a,b],[d,e]]) * [x - c, y - f]
+ */
+export function pixelToGeo(drawing, pixelX, pixelY) {
+  if (!isDrawingAligned(drawing)) return null;
+  const a = Number(drawing.transform_a);
+  const b = Number(drawing.transform_b);
+  const c = Number(drawing.transform_c);
+  const d = Number(drawing.transform_d);
+  const e = Number(drawing.transform_e);
+  const f = Number(drawing.transform_f);
+
+  const det = a * e - b * d;
+  if (!Number.isFinite(det) || Math.abs(det) < 1e-12) return null;
+
+  const x = Number(pixelX) - c;
+  const y = Number(pixelY) - f;
+  const lng = (e * x - b * y) / det;
+  const lat = (-d * x + a * y) / det;
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}

@@ -2,10 +2,13 @@
  * Hook for the View → Map and Drawings pages.
  *
  * Loads waypoints from public.waypoints (via active plans) and groups each
- * waypoint's photos (most recent first). Server returns full waypoint rows
- * (waypoint_id, waypoint_name, lat, lng, sequence, action, alt, plan_id, …)
- * from GET /v1/plans?project_id=<id>; this hook uses waypoint_id, waypoint_name,
- * lat, and lng for marker placement.
+ * waypoint's photos (most recent first). Only waypoints that have at least one
+ * photo (public.photos.waypoint_id) are returned — empty waypoints are omitted
+ * so View/Photos does not render markers with nothing to show.
+ *
+ * Server returns full waypoint rows (waypoint_id, waypoint_name, lat, lng,
+ * sequence, action, alt, plan_id, …) from GET /v1/plans?project_id=<id>; this
+ * hook uses waypoint_id, waypoint_name, lat, and lng for marker placement.
  */
 
 import { useEffect, useState } from 'react';
@@ -57,7 +60,7 @@ export function useActivePlanWaypoints(
         } catch (err) {
           lastErr = err;
           if (i < attempts - 1) {
-            await new Promise(resolve => setTimeout(resolve, 250 * (i + 1)));
+            await new Promise((resolve) => setTimeout(resolve, 250 * (i + 1)));
           }
         }
       }
@@ -94,6 +97,7 @@ export function useActivePlanWaypoints(
             const photos = (photosByWaypoint.get(wp.waypoint_id) || []).sort(
               sortByTakenAtDesc,
             );
+            if (!photos.length) return;
             merged.set(wp.waypoint_id, {
               waypoint_id: wp.waypoint_id,
               waypoint_name: wp.waypoint_name,
