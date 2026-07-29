@@ -619,6 +619,10 @@ def _generate_thumbnail_bytes(
     """Build a lighter thumbnail. Returns (bytes, ext, content_type) or None."""
     try:
         image = Image.open(io.BytesIO(file_bytes))
+        # Only a 512px thumbnail is derived here (the original file_bytes are
+        # uploaded to R2 untouched), so ask JPEG's decoder for a reduced-size
+        # draft instead of decoding the photo at full resolution.
+        image.draft("RGB", (512, 512))
         image.load()
     except Exception:
         return None
@@ -628,7 +632,9 @@ def _generate_thumbnail_bytes(
     except Exception:
         pass
 
-    thumb = image.copy()
+    # `image` is only used to build this thumbnail, so resize in place
+    # instead of copying the full decoded bitmap first.
+    thumb = image
     thumb.thumbnail((512, 512), Image.Resampling.LANCZOS)
 
     has_alpha = thumb.mode in ("RGBA", "LA") or (

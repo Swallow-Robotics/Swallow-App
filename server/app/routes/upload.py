@@ -439,6 +439,11 @@ def _load_image(data: bytes) -> Image.Image:
     try:
         buffer = io.BytesIO(data)
         image = Image.open(buffer)
+        # Only EXIF metadata and a 512px thumbnail are derived from this
+        # decoded copy (the original bytes are uploaded to R2 untouched),
+        # so ask JPEG's decoder for a reduced-size draft. This keeps peak
+        # memory well below decoding the photo at full resolution.
+        image.draft("RGB", (512, 512))
         image.load()
         return image
     except Exception as exc:
@@ -465,7 +470,9 @@ def _generate_thumbnail_bytes(
         # If EXIF orientation fails, continue with original image
         pass
     
-    thumb = image.copy()
+    # `image` is only used to build this thumbnail, so resize in place
+    # instead of copying the full decoded bitmap first.
+    thumb = image
     thumb.thumbnail((512, 512), Image.Resampling.LANCZOS)
 
     use_png = mime_type == "image/png" and _has_transparency(image)

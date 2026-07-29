@@ -35,6 +35,15 @@ def create_app(config_name=None):
         raise RuntimeError("SECRET_KEY is required in production")
     app.config["SECRET_KEY"] = secret_key or "dev-secret-key-change-in-production"
 
+    # Caps the total size of any incoming request body (all files + form
+    # fields combined). Must stay comfortably above the per-file upload
+    # limit (20MB, see MAX_UPLOAD_BYTES / MAX_PHOTO_UPLOAD_BYTES) since
+    # batch uploads send multiple files in a single request. Override via
+    # env var if a deployment needs a different ceiling.
+    app.config["MAX_CONTENT_LENGTH"] = int(
+        os.environ.get("MAX_CONTENT_LENGTH_BYTES", 250 * 1024 * 1024)
+    )
+
     # Support multiple local dev ports by default; override with FRONTEND_ORIGIN env var
     default_origins = [
         "http://localhost:3000",
