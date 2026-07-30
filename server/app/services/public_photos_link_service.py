@@ -64,6 +64,7 @@ def _serialize_drawing(
         "height": drawing.get("height"),
     }
     if capture_method == "drone":
+        out["aligned"] = bool(drawing.get("aligned"))
         for key in DRAWING_TRANSFORM_KEYS:
             out[key] = drawing.get(key)
     return out
@@ -213,18 +214,20 @@ def get_public_link_photo(token: str, photo_id: str) -> Optional[Dict[str, Any]]
 
     wp_resp = (
         supabase_client.client.table(WAYPOINTS_TABLE)
-        .select("waypoint_name")
+        .select("waypoint_name, action")
         .eq("waypoint_id", waypoint_id)
         .limit(1)
         .execute()
     )
     wp_rows = wp_resp.data or []
     waypoint_name = wp_rows[0].get("waypoint_name") if wp_rows else None
+    waypoint_action = wp_rows[0].get("action") if wp_rows else None
 
     return {
         "photo_id": photo.get("photo_id"),
         "waypoint_id": waypoint_id,
         "waypoint_name": waypoint_name,
+        "waypoint_action": waypoint_action,
         "taken_at": photo.get("taken_at"),
         "capture_method": photo.get("capture_method"),
         "project_name": _project_name(export.get("project_id")),

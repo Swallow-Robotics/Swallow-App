@@ -1,7 +1,7 @@
 """
-Draws a simplified Barn Swallow map pin (tip-anchored) on a PyMuPDF page —
-the same teardrop shape and primary color as the Photos page waypoint pins,
-without the camera glyph. PyMuPDF cannot read CSS variables, so the brand
+Draws a Barn Swallow map pin with a camera glyph (tip-anchored) on a PyMuPDF
+page — the same shape, colors, and camera icon as the Photos page waypoint
+pins (WAYPOINT_PIN_SVG). PyMuPDF cannot read CSS variables, so the brand
 colors are hardcoded here to match --color-primary (#3f6fa0) and
 --color-surface-primary (#ffffff).
 """
@@ -24,6 +24,13 @@ _VIEWBOX_TOP_MARGIN = 30.0
 _VIEWBOX_TIP = (12.0, 31.0)
 _VIEWBOX_STROKE_WIDTH = 1.5
 
+# Camera glyph geometry, matching WAYPOINT_PIN_SVG's <rect>/<rect>/<circle>
+# (body, viewfinder bump, lens), in the same 24x32 viewBox space.
+_CAMERA_BODY_CORNERS = ((6.5, 8.5), (17.5, 15.5))
+_CAMERA_BUMP_CORNERS = ((9.6, 6.8), (14.4, 9.2))
+_CAMERA_LENS_CENTER = (12.0, 12.0)
+_CAMERA_LENS_RADIUS = 2.1
+
 
 def _scaled(
     point: Tuple[float, float], tip_x: float, tip_y: float, scale: float
@@ -44,6 +51,10 @@ def draw_waypoint_pin(
     def p(point: Tuple[float, float]) -> "fitz.Point":
         return _scaled(point, tip_x, tip_y, scale)
 
+    def rect(corners: Tuple[Tuple[float, float], Tuple[float, float]]) -> "fitz.Rect":
+        (x0, y0), (x1, y1) = (p(corners[0]), p(corners[1]))
+        return fitz.Rect(x0, y0, x1, y1)
+
     shape = page.new_shape()
     shape.draw_bezier(p((12, 1)), p((6.477, 1)), p((2, 5.477)), p((2, 11)))
     shape.draw_bezier(p((2, 11)), p((2, 18.732)), p((12, 31)), p((12, 31)))
@@ -55,6 +66,18 @@ def draw_waypoint_pin(
         width=stroke_width,
         closePath=True,
     )
+
+    # Camera glyph: white body + viewfinder bump, then the primary-color lens
+    # on top, mirroring WAYPOINT_PIN_SVG's layering.
+    shape.draw_rect(rect(_CAMERA_BODY_CORNERS))
+    shape.draw_rect(rect(_CAMERA_BUMP_CORNERS))
+    shape.finish(color=None, fill=PIN_STROKE_COLOR)
+
+    lens_center = p(_CAMERA_LENS_CENTER)
+    lens_radius = _CAMERA_LENS_RADIUS * scale
+    shape.draw_circle(lens_center, lens_radius)
+    shape.finish(color=None, fill=PIN_FILL_COLOR)
+
     shape.commit()
 
     half_width = _VIEWBOX_HALF_WIDTH * scale

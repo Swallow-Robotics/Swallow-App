@@ -151,7 +151,9 @@ const PublicPhotosLinkViewerPage = () => {
     return [...(waypoint?.photos || [])].sort(sortByTakenAtAsc);
   }, [link, photoDetail]);
 
-  const isPanorama = captureMethod === '360_camera';
+  const isPanorama =
+    photoDetail?.capture_method === '360_camera' ||
+    photoDetail?.waypoint_action === 'photo_360';
 
   if (isLoading) {
     return (

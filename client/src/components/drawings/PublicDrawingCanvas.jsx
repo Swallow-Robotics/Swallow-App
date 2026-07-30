@@ -4,8 +4,8 @@ import { SimpleWaypointMarker } from './DrawingMarkerOverlay';
 
 /**
  * Read-only drawing view for the public Photos Link viewer. Reuses the same
- * pan/zoom engine as the authenticated Photos page (DrawingCanvas) but
- * renders simplified pins (no camera glyph) and exposes no edit affordances.
+ * pan/zoom engine as the authenticated Photos page (DrawingCanvas) and the
+ * same camera-icon pins, but exposes no edit affordances.
  */
 const PublicDrawingCanvas = ({
   src,
