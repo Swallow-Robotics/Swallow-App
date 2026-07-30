@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context';
 import AuthCallbackPage from './AuthCallbackPage';
 
 const DomainCard = ({ to, title, description }) => (
@@ -10,6 +11,8 @@ const DomainCard = ({ to, title, description }) => (
 );
 
 const HomePage = () => {
+  const { user } = useAuth();
+
   if (typeof window !== 'undefined') {
     const hash = window.location.hash || '';
     if (
@@ -19,6 +22,18 @@ const HomePage = () => {
     ) {
       return <AuthCallbackPage />;
     }
+  }
+
+  // Public / logged-out home: bare-bones coming-soon page with no links
+  // into the authenticated app or login/register.
+  if (!user) {
+    return (
+      <div className="home-page">
+        <div className="home-page__hero">
+          <p className="home-page__subtitle">Website coming soon</p>
+        </div>
+      </div>
+    );
   }
 
   return (

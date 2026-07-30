@@ -130,45 +130,47 @@ const Header = () => {
               />
             </Link>
           )}
-          <div className="App-header__tabs">
-            {isViewOnly ? (
-              <>
-                <NavLink to="/view/projects" className={headerNavTabClass}>
-                  Projects
-                </NavLink>
-                {user && hasActiveProject && (
-                  <NavLink to="/view/dashboard" className={headerNavTabClass}>
-                    Dashboard
+          {user ? (
+            <div className="App-header__tabs">
+              {isViewOnly ? (
+                <>
+                  <NavLink to="/view/projects" className={headerNavTabClass}>
+                    Projects
                   </NavLink>
-                )}
-                {user && hasActiveProject && (
-                  <NavLink to="/view/photos" end className={headerNavTabClass}>
-                    Photos
-                  </NavLink>
-                )}
-                {user && hasActiveProject && (
-                  <NavLink to="/view/site" className={headerNavTabClass}>
-                    Site
-                  </NavLink>
-                )}
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/view/projects"
-                  className={`App-header__tab${activeDomain === "view" ? " App-header__tab--active" : ""}`}
-                >
-                  View
-                </Link>
-                <Link
-                  to="/plan/projects"
-                  className={`App-header__tab${activeDomain === "plan" ? " App-header__tab--active" : ""}`}
-                >
-                  Plan
-                </Link>
-              </>
-            )}
-          </div>
+                  {hasActiveProject && (
+                    <NavLink to="/view/dashboard" className={headerNavTabClass}>
+                      Dashboard
+                    </NavLink>
+                  )}
+                  {hasActiveProject && (
+                    <NavLink to="/view/photos" end className={headerNavTabClass}>
+                      Photos
+                    </NavLink>
+                  )}
+                  {hasActiveProject && (
+                    <NavLink to="/view/site" className={headerNavTabClass}>
+                      Site
+                    </NavLink>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/view/projects"
+                    className={`App-header__tab${activeDomain === "view" ? " App-header__tab--active" : ""}`}
+                  >
+                    View
+                  </Link>
+                  <Link
+                    to="/plan/projects"
+                    className={`App-header__tab${activeDomain === "plan" ? " App-header__tab--active" : ""}`}
+                  >
+                    Plan
+                  </Link>
+                </>
+              )}
+            </div>
+          ) : null}
         </div>
         <div className="App-header__right">
           {user && isViewOnly && projectName && (
