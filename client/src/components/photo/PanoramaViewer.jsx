@@ -5,8 +5,11 @@ import 'pannellum/build/pannellum.js';
 /**
  * Full-bleed 360 panorama viewer powered by Pannellum.
  * Destroys and reinitializes when the source URL changes.
+ *
+ * `className` is optional and lets a caller scope CSS overrides (e.g.
+ * repositioning Pannellum's own control buttons) to just that usage.
  */
-const PanoramaViewer = ({ src }) => {
+const PanoramaViewer = ({ src, className }) => {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
 
@@ -36,6 +39,7 @@ const PanoramaViewer = ({ src }) => {
   return (
     <div
       ref={containerRef}
+      className={className}
       style={{
         position: 'absolute',
         inset: 0,

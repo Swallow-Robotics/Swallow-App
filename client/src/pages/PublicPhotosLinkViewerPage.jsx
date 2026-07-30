@@ -12,6 +12,7 @@ import {
   isDrawingAligned,
   waypointsToPixelPositions,
 } from '../utils/drawingAffineTransform';
+import { formatMonthDayYear } from '../utils/dateTime';
 
 const sortByTakenAtAsc = (a, b) => {
   const ta = new Date(a.taken_at || 0).getTime();
@@ -155,6 +156,19 @@ const PublicPhotosLinkViewerPage = () => {
     photoDetail?.capture_method === '360_camera' ||
     photoDetail?.waypoint_action === 'photo_360';
 
+  useEffect(() => {
+    if (!link) return undefined;
+    const previousTitle = document.title;
+    const datePart =
+      view === 'photo' && photoDetail?.taken_at
+        ? ` - ${formatMonthDayYear(photoDetail.taken_at)}`
+        : '';
+    document.title = `${link.project_name || 'Photos'}${datePart} - Swallow`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [link, view, photoDetail]);
+
   if (isLoading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -213,7 +227,11 @@ const PublicPhotosLinkViewerPage = () => {
           <>
             {photoDetail?.r2_url ? (
               isPanorama ? (
-                <PanoramaViewer key={photoDetail.photo_id} src={photoDetail.r2_url} />
+                <PanoramaViewer
+                  key={photoDetail.photo_id}
+                  src={photoDetail.r2_url}
+                  className="public-photos-link-panorama"
+                />
               ) : (
                 <PanZoomImage
                   src={photoDetail.r2_url}

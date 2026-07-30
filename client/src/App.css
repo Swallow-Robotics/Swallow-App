@@ -241,6 +241,17 @@
   }
 }
 
+/* Public Photos Link panorama viewer: Pannellum pins its own controls
+   (zoom/fullscreen/orientation) to the top-left of its container by default.
+   Zoom and fullscreen are disabled, but the mobile gyroscope/orientation
+   button remains and otherwise overlaps our top-left "Back" button, so move
+   it to the bottom-left, out of the way of any of our overlay controls. */
+.public-photos-link-panorama .pnlm-controls-container {
+  top: auto;
+  bottom: var(--space-md);
+  left: var(--space-md);
+}
+
 /* ===========================
    SECONDARY NAVIGATION BANNER
    =========================== */

@@ -4,6 +4,7 @@ import PanoramaViewer from '../components/photo/PanoramaViewer';
 import PanZoomImage from '../components/photo/PanZoomImage';
 import PublicHeaderBanner from '../components/photo/PublicHeaderBanner';
 import publicPhotoService from '../services/publicPhotoService';
+import { formatMonthDayYear } from '../utils/dateTime';
 
 /**
  * Public, unauthenticated single-photo viewer reached via the token embedded
@@ -47,6 +48,16 @@ const PublicPhotoViewerPage = () => {
   const isPanorama =
     photo?.capture_method === '360_camera' ||
     photo?.waypoint_action === 'photo_360';
+
+  useEffect(() => {
+    if (!photo) return undefined;
+    const previousTitle = document.title;
+    const datePart = photo.taken_at ? ` - ${formatMonthDayYear(photo.taken_at)}` : '';
+    document.title = `${photo.project_name || 'Photo'}${datePart} - Swallow`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [photo]);
 
   return (
     <div
