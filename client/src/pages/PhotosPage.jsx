@@ -16,6 +16,8 @@ import WaypointPhotosModal from '../components/map/WaypointPhotosModal';
 import EditLocationModal from '../components/map/EditLocationModal';
 import UploadPhotosModal from '../components/photo/UploadPhotosModal';
 import PdfExportModal from '../components/photo/PdfExportModal';
+import PublicLinkModal from '../components/photo/PublicLinkModal';
+import photosLinkExportService from '../services/photosLinkExportService';
 import PhotoMapLive from '../PhotoMapLive';
 import PhotoLibraryPage from './PhotoLibraryPage';
 import {
@@ -195,7 +197,6 @@ const OptionsPopup = ({
   onAlignDrawing,
   onAddWaypoint,
   onLibrary,
-  onPdfExport,
   onClose,
 }) => {
   const popupRef = useRef(null);
@@ -240,8 +241,33 @@ const OptionsPopup = ({
       <button type="button" className="btn-menu-item" onClick={onLibrary}>
         Photo Library
       </button>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Export popup — PDF Export moved here from Options, plus the new Public Link
+// ---------------------------------------------------------------------------
+const ExportPopup = ({ onPdfExport, onPublicLink, onClose }) => {
+  const popupRef = useRef(null);
+
+  useEffect(() => {
+    const handleClick = e => {
+      if (popupRef.current && !popupRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  return (
+    <div ref={popupRef} className="photos-page__options-popup">
       <button type="button" className="btn-menu-item" onClick={onPdfExport}>
         PDF Export
+      </button>
+      <button type="button" className="btn-menu-item" onClick={onPublicLink}>
+        Public Link
       </button>
     </div>
   );
@@ -321,7 +347,12 @@ const PhotosPage = () => {
   const [drawingsModalOpen, setDrawingsModalOpen] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
+  const [publicLinkOpen, setPublicLinkOpen] = useState(false);
+  const [publicLinkUrl, setPublicLinkUrl] = useState('');
+  const [publicLinkLoading, setPublicLinkLoading] = useState(false);
+  const [publicLinkError, setPublicLinkError] = useState('');
 
   // Site plan only
   const [alignModalOpen, setAlignModalOpen] = useState(false);
@@ -659,6 +690,27 @@ const PhotosPage = () => {
     setPendingWaypointPixel(null);
   }, []);
 
+  const handlePublicLink = useCallback(async () => {
+    setPublicLinkOpen(true);
+    setPublicLinkLoading(true);
+    setPublicLinkError('');
+    setPublicLinkUrl('');
+    try {
+      const resp = await photosLinkExportService.createOrReuse({
+        projectId,
+        captureMethod: isSitePlan ? 'drone' : '360_camera',
+        drawingId: activeDrawingId,
+      });
+      setPublicLinkUrl(resp?.url || '');
+    } catch (err) {
+      setPublicLinkError(
+        err?.payload?.error || err?.message || 'Failed to create Public Link.',
+      );
+    } finally {
+      setPublicLinkLoading(false);
+    }
+  }, [projectId, isSitePlan, activeDrawingId]);
+
   const waypointMarkers = isSitePlan
     ? sitePlanWaypointMarkers
     : floorWaypointMarkers;
@@ -901,7 +953,10 @@ const PhotosPage = () => {
               <button
                 type="button"
                 className="btn-format-1 drawings-page__tool-btn"
-                onClick={() => setOptionsOpen(o => !o)}
+                onClick={() => {
+                  setExportOpen(false);
+                  setOptionsOpen(o => !o);
+                }}
               >
                 Options
               </button>
@@ -931,11 +986,32 @@ const PhotosPage = () => {
                     setOptionsOpen(false);
                     setSubView('library');
                   }}
+                  onClose={() => setOptionsOpen(false)}
+                />
+              ) : null}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="btn-format-1 drawings-page__tool-btn"
+                onClick={() => {
+                  setOptionsOpen(false);
+                  setExportOpen(o => !o);
+                }}
+              >
+                Export
+              </button>
+              {exportOpen ? (
+                <ExportPopup
                   onPdfExport={() => {
-                    setOptionsOpen(false);
+                    setExportOpen(false);
                     setPdfExportOpen(true);
                   }}
-                  onClose={() => setOptionsOpen(false)}
+                  onPublicLink={() => {
+                    setExportOpen(false);
+                    handlePublicLink();
+                  }}
+                  onClose={() => setExportOpen(false)}
                 />
               ) : null}
             </div>
@@ -1017,6 +1093,14 @@ const PhotosPage = () => {
           drawingId={activeDrawingId}
           isSitePlan={isSitePlan}
           onClose={() => setPdfExportOpen(false)}
+        />
+
+        <PublicLinkModal
+          open={publicLinkOpen}
+          url={publicLinkUrl}
+          isLoading={publicLinkLoading}
+          error={publicLinkError}
+          onClose={() => setPublicLinkOpen(false)}
         />
       </div>
     </>

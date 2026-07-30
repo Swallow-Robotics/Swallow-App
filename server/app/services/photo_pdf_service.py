@@ -19,11 +19,11 @@ from app.services.public_photo_service import ensure_public_token
 from app.services.storage.r2_client import r2_client
 from app.services.storage.supabase_client import supabase_client
 from app.utils.affine_transform import geo_to_pixel
+from app.utils.pdf_pin import draw_waypoint_pin
 from app.utils.public_origin import get_public_app_origin
 
 EXPORT_TABLE = "photo_pdf_exports"
 EXPORT_KEY_TEMPLATE = "projects/{project_id}/photo-pdf-exports/{export_id}.pdf"
-MARKER_COLOR = (0.85, 0.2, 0.2)
 MARKER_LINK_PADDING = 6
 
 
@@ -195,9 +195,17 @@ def _render_pdf(
     public_origin: str,
 ) -> bytes:
     """Draw the drawing image on a single PDF page, then overlay a marker and
-    a clickable URI link annotation for each included waypoint."""
+    a clickable URI link annotation for each included waypoint.
+
+    Markers are simplified Barn Swallow pins matching the Photos page pin
+    shape and primary color, tip-anchored on the waypoint pixel (Photos pins
+    are tip-anchored, unlike the circles this replaced)."""
     pixmap = fitz.Pixmap(image_bytes)
-    radius = max(10.0, min(pixmap.width, pixmap.height) * 0.012)
+    # Same relative-sizing basis as the previous circle marker, just re-read
+    # as a pin height instead of a radius so pins stay proportionate to the
+    # drawing rather than dominating it.
+    size_basis = max(10.0, min(pixmap.width, pixmap.height) * 0.012)
+    pin_height = size_basis * 2.4
 
     doc = fitz.open()
     page = doc.new_page(width=pixmap.width, height=pixmap.height)
@@ -207,13 +215,13 @@ def _render_pdf(
         token = tokens.get(item["photo_id"])
         if not token:
             continue
-        center = fitz.Point(item["pixel_x"], item["pixel_y"])
-        page.draw_circle(
-            center, radius, color=MARKER_COLOR, fill=MARKER_COLOR, width=0
-        )
-        pad = radius + MARKER_LINK_PADDING
+        tip_x, tip_y = item["pixel_x"], item["pixel_y"]
+        pin_rect = draw_waypoint_pin(page, tip_x, tip_y, pin_height)
         link_rect = fitz.Rect(
-            center.x - pad, center.y - pad, center.x + pad, center.y + pad
+            pin_rect.x0 - MARKER_LINK_PADDING,
+            pin_rect.y0 - MARKER_LINK_PADDING,
+            pin_rect.x1 + MARKER_LINK_PADDING,
+            pin_rect.y1 + MARKER_LINK_PADDING,
         )
         page.insert_link(
             {

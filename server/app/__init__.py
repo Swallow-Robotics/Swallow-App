@@ -91,6 +91,8 @@ def create_app(config_name=None):
     from app.api_routes.v1.waypoints import bp as waypoints_v1_bp
     from app.api_routes.v1.public_photos import bp as public_photos_v1_bp
     from app.api_routes.v1.photo_pdf_exports import bp as photo_pdf_exports_v1_bp
+    from app.api_routes.v1.photos_link_exports import bp as photos_link_exports_v1_bp
+    from app.api_routes.v1.public_photos_link import bp as public_photos_link_v1_bp
     from app.api_routes.files import bp as files_bp
     from app.api_routes.public_links import bp as public_links_bp
 
@@ -109,6 +111,8 @@ def create_app(config_name=None):
     app.register_blueprint(waypoints_v1_bp, url_prefix="/api/v1/waypoints")
     app.register_blueprint(public_photos_v1_bp)
     app.register_blueprint(photo_pdf_exports_v1_bp)
+    app.register_blueprint(photos_link_exports_v1_bp)
+    app.register_blueprint(public_photos_link_v1_bp)
     app.register_blueprint(files_bp)
     app.register_blueprint(public_links_bp)
 

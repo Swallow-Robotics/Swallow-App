@@ -43,6 +43,14 @@ const WAYPOINT_PIN_SVG =
   '<circle cx="12" cy="12" r="2.1" fill="var(--color-primary)"/>' +
   '</svg>';
 
+// Simplified pin (no camera glyph) for read-only public viewers — same pin
+// shape and primary color as WAYPOINT_PIN_SVG above.
+const SIMPLE_WAYPOINT_PIN_SVG =
+  '<svg width="24" height="32" viewBox="0 0 24 32" fill="none" aria-hidden="true">' +
+  '<path d="M12 1C6.477 1 2 5.477 2 11c0 7.732 10 20 10 20s10-12.268 10-20C22 5.477 17.523 1 12 1z"' +
+  ' fill="var(--color-primary)" stroke="var(--color-surface-primary)" stroke-width="1.5"/>' +
+  '</svg>';
+
 const createWaypointPinEl = () => {
   // MapLibre positions the marker root via `transform: translate(...)`, so hover
   // effects must NOT touch the root transform (doing so makes markers jump). A
@@ -240,4 +248,61 @@ export function addWaypointMarkersToMap(map, refs, options) {
   }
 
   return { bounds, hasProjectPin, pmLat, pmLng };
+}
+
+/**
+ * Read-only variant for the public Photos Link viewer: simplified pins (no
+ * camera glyph), no project pin, no drag/edit affordances.
+ *
+ * @returns {{ bounds: maplibregl.LngLatBounds }}
+ */
+export function addSimpleWaypointMarkersToMap(map, refs, options) {
+  if (!map || !refs) return { bounds: null };
+
+  const { waypoints = [], onWaypointClick = () => {} } = options || {};
+  const { markersRef } = refs;
+  clearWaypointMarkers(refs);
+
+  const bounds = new maplibregl.LngLatBounds();
+
+  waypoints.forEach((waypoint) => {
+    const lngLat = toLngLat(waypoint.lng, waypoint.lat);
+    if (!lngLat) return;
+    bounds.extend(lngLat);
+
+    const el = document.createElement('div');
+    el.style.width = '24px';
+    el.style.height = '32px';
+    el.style.cursor = 'pointer';
+    el.style.userSelect = 'none';
+    el.style.lineHeight = '0';
+    el.style.filter = 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))';
+    el.innerHTML = SIMPLE_WAYPOINT_PIN_SVG;
+    el.title = waypoint.waypoint_name || 'Waypoint';
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute(
+      'aria-label',
+      `View photos for ${waypoint.waypoint_name || 'waypoint'}`,
+    );
+
+    const open = (evt) => {
+      evt?.stopPropagation?.();
+      onWaypointClick(waypoint);
+    };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', (evt) => {
+      if (evt.key === 'Enter' || evt.key === ' ') {
+        evt.preventDefault();
+        open(evt);
+      }
+    });
+
+    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+      .setLngLat(lngLat)
+      .addTo(map);
+    if (markersRef) markersRef.current.push(marker);
+  });
+
+  return { bounds };
 }

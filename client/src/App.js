@@ -37,6 +37,7 @@ import {
 import PhotoViewerPage from "./pages/PhotoViewerPage";
 import PublicProjectView from "./pages/PublicProjectView";
 import PublicPhotoViewerPage from "./pages/PublicPhotoViewerPage";
+import PublicPhotosLinkViewerPage from "./pages/PublicPhotosLinkViewerPage";
 import ConfirmEmailPage from "./pages/ConfirmEmailPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import EmailConfirmedPage from "./pages/EmailConfirmedPage";
@@ -306,9 +307,12 @@ export function AppRoutes() {
   const activeDomain = useDomain();
   const { isViewOnly } = usePortalMode();
 
-  // The public photo viewer always renders its own minimal banner and never
-  // the app-wide nav (Header/ViewNav/PlanNav), regardless of the embed param.
-  const isPublicPhotoRoute = location.pathname.startsWith("/public/photos/");
+  // The public photo viewers always render their own minimal banner and
+  // never the app-wide nav (Header/ViewNav/PlanNav), regardless of the
+  // embed param.
+  const isPublicPhotoRoute =
+    location.pathname.startsWith("/public/photos/") ||
+    location.pathname.startsWith("/public/photos-link/");
   const showHeader =
     !isPublicPhotoRoute &&
     !(
@@ -336,6 +340,10 @@ export function AppRoutes() {
           <Route
             path="/public/photos/:token"
             element={<PublicPhotoViewerPage />}
+          />
+          <Route
+            path="/public/photos-link/:token"
+            element={<PublicPhotosLinkViewerPage />}
           />
 
           {/* Profile (global) */}

@@ -9,6 +9,14 @@ const WAYPOINT_PIN_SVG =
   '<circle cx="12" cy="12" r="2.1" fill="var(--color-primary)"/>' +
   '</svg>';
 
+// Simplified pin (no camera glyph) for read-only public viewers — same pin
+// shape and primary color as WAYPOINT_PIN_SVG above.
+const SIMPLE_WAYPOINT_PIN_SVG =
+  '<svg width="28" height="36" viewBox="0 0 24 32" fill="none" aria-hidden="true">' +
+  '<path d="M12 1C6.477 1 2 5.477 2 11c0 7.732 10 20 10 20s10-12.268 10-20C22 5.477 17.523 1 12 1z"' +
+  ' fill="var(--color-primary)" stroke="var(--color-surface-primary)" stroke-width="1.5"/>' +
+  '</svg>';
+
 const PROJECT_PIN_SVG =
   '<svg width="30" height="40" viewBox="0 0 24 32" fill="none" aria-hidden="true">' +
   '<path d="M12 1C6.477 1 2 5.477 2 11c0 7.732 10 20 10 20s10-12.268 10-20C22 5.477 17.523 1 12 1z"' +
@@ -90,6 +98,35 @@ export function WaypointMarker({ marker, screenX, screenY, onClick, onContextMen
         style={{ display: 'block', lineHeight: 0 }}
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: WAYPOINT_PIN_SVG }}
+      />
+    </button>
+  );
+}
+
+/** Read-only marker for public viewers: same pin shape/color, no camera glyph. */
+export function SimpleWaypointMarker({ marker, screenX, screenY, onClick }) {
+  const x = screenX ?? marker.pixelX;
+  const y = screenY ?? marker.pixelY;
+  return (
+    <button
+      type="button"
+      onPointerDown={e => e.stopPropagation()}
+      onClick={e => {
+        e.stopPropagation();
+        onClick?.(marker);
+      }}
+      aria-label={marker.waypoint_name || 'Waypoint'}
+      style={{
+        ...markerStyle(x, y),
+        width: 28,
+        height: 36,
+        filter: 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))',
+      }}
+    >
+      <span
+        style={{ display: 'block', lineHeight: 0 }}
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: SIMPLE_WAYPOINT_PIN_SVG }}
       />
     </button>
   );
