@@ -22,16 +22,6 @@ const FILL_COLORS = {
 const ICON_COLOR = '#ffffff';
 const STROKE_COLOR = '#ffffff';
 
-const ellipsePoints = (cx, cy, rx, ry, startDeg, endDeg, segments = 16) => {
-  const span = endDeg - startDeg;
-  const points = [];
-  for (let i = 0; i <= segments; i += 1) {
-    const angle = ((startDeg + (span * i) / segments) * Math.PI) / 180;
-    points.push([cx + rx * Math.cos(angle), cy + ry * Math.sin(angle)]);
-  }
-  return points;
-};
-
 /**
  * Top-down quadcopter: central fuselage, four arms, and open rotor rings
  * with a simple propeller cross — reads clearly as a drone at small sizes.
@@ -79,87 +69,54 @@ const droneIconMarkup = (cx, cy, scale) => {
 };
 
 /**
- * 360 camera glyph matched to a clear camera-plus-orbit reference: solid
- * camera body with a top-left viewfinder, ring lens, flash dot, and a flat
- * elliptical rotation arrow underneath (not a cramped circular hook).
+ * Crystal-clear 360 camera at marker size: a large, obvious camera silhouette
+ * (body + viewfinder + ring lens) with bold "360" text underneath. Tiny arc
+ * ornaments were reading as a smile and have been removed on purpose.
  */
 const camera360IconMarkup = (cx, cy, scale, fillColor) => {
-  // Shift the whole glyph slightly up so camera + orbit both fit the circle.
-  const originY = cy - scale * 0.06;
-
-  const bodyW = scale * 1.15;
-  const bodyH = scale * 0.58;
-  const bodyTop = originY - scale * 0.42;
+  const bodyW = scale * 1.4;
+  const bodyH = scale * 0.78;
+  const bodyTop = cy - scale * 0.72;
   const bodyLeft = cx - bodyW / 2;
-  const rx = scale * 0.1;
+  const corner = scale * 0.12;
 
-  // Viewfinder sits on the top-left of the body (reference silhouette).
-  const bumpW = scale * 0.38;
-  const bumpH = scale * 0.2;
-  const bumpLeft = bodyLeft + scale * 0.12;
-  const bumpTop = bodyTop - bumpH + scale * 0.06;
+  const bumpW = scale * 0.42;
+  const bumpH = scale * 0.22;
+  const bumpLeft = cx - bumpW / 2;
+  const bumpTop = bodyTop - bumpH + scale * 0.05;
 
-  const lensCx = cx - scale * 0.06;
+  const lensCx = cx;
   const lensCy = bodyTop + bodyH / 2;
-  const lensOuter = scale * 0.2;
-  const lensInner = scale * 0.1;
+  const lensOuter = scale * 0.28;
+  const lensInner = scale * 0.14;
 
-  const flashR = scale * 0.055;
-  const flashCx = cx + scale * 0.38;
-  const flashCy = lensCy - scale * 0.02;
-
-  const body = `<rect x="${bodyLeft.toFixed(2)}" y="${bodyTop.toFixed(2)}" width="${bodyW.toFixed(2)}" height="${bodyH.toFixed(2)}" rx="${rx.toFixed(2)}" fill="${ICON_COLOR}"/>`;
-  const bump = `<rect x="${bumpLeft.toFixed(2)}" y="${bumpTop.toFixed(2)}" width="${bumpW.toFixed(2)}" height="${bumpH.toFixed(2)}" rx="${(rx * 0.7).toFixed(2)}" fill="${ICON_COLOR}"/>`;
-  // Ring lens: white outer disc with marker-color hole (reads as a lens).
-  const lensOuterCircle = `<circle cx="${lensCx.toFixed(2)}" cy="${lensCy.toFixed(2)}" r="${lensOuter.toFixed(2)}" fill="${ICON_COLOR}"/>`;
+  const body = `<rect x="${bodyLeft.toFixed(2)}" y="${bodyTop.toFixed(2)}" width="${bodyW.toFixed(2)}" height="${bodyH.toFixed(2)}" rx="${corner.toFixed(2)}" fill="${ICON_COLOR}"/>`;
+  const bump = `<rect x="${bumpLeft.toFixed(2)}" y="${bumpTop.toFixed(2)}" width="${bumpW.toFixed(2)}" height="${bumpH.toFixed(2)}" rx="${(corner * 0.6).toFixed(2)}" fill="${ICON_COLOR}"/>`;
+  const lens = `<circle cx="${lensCx.toFixed(2)}" cy="${lensCy.toFixed(2)}" r="${lensOuter.toFixed(2)}" fill="${ICON_COLOR}"/>`;
   const lensHole = `<circle cx="${lensCx.toFixed(2)}" cy="${lensCy.toFixed(2)}" r="${lensInner.toFixed(2)}" fill="${fillColor}"/>`;
-  const flash = `<circle cx="${flashCx.toFixed(2)}" cy="${flashCy.toFixed(2)}" r="${flashR.toFixed(2)}" fill="${ICON_COLOR}"/>`;
 
-  // Perspective / elliptical orbit arrow under the camera (wide, flat).
-  const orbitCy = originY + scale * 0.48;
-  const orbitRx = scale * 0.48;
-  const orbitRy = scale * 0.18;
-  // Open ellipse so the arrowhead on the right reads clearly.
-  const points = ellipsePoints(cx, orbitCy, orbitRx, orbitRy, 200, 20, 18);
-  const arcPath = points
-    .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`)
-    .join(' ');
-  const strokeW = Math.max(1.1, scale * 0.11);
-  const arc = `<path d="${arcPath}" fill="none" stroke="${ICON_COLOR}" stroke-width="${strokeW.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const labelY = cy + scale * 0.78;
+  const fontSize = scale * 0.58;
+  const label =
+    `<text x="${cx}" y="${labelY.toFixed(2)}" text-anchor="middle" dominant-baseline="central" ` +
+    `font-family="Arial, Helvetica, sans-serif" font-size="${fontSize.toFixed(2)}" ` +
+    `font-weight="700" fill="${ICON_COLOR}" letter-spacing="0.5">360</text>`;
 
-  const [tipX, tipY] = points[points.length - 1];
-  const [prevX, prevY] = points[points.length - 2];
-  const dx = tipX - prevX;
-  const dy = tipY - prevY;
-  const length = Math.hypot(dx, dy) || 1;
-  const ux = dx / length;
-  const uy = dy / length;
-  const perpX = -uy;
-  const perpY = ux;
-  const arrowSize = scale * 0.2;
-  // Pull the head slightly past the tip so it doesn't melt into the stroke.
-  const baseX = tipX + ux * scale * 0.02;
-  const baseY = tipY + uy * scale * 0.02;
-  const p1 = [baseX + ux * arrowSize * 0.75, baseY + uy * arrowSize * 0.75];
-  const p2 = [baseX - perpX * arrowSize * 0.55, baseY - perpY * arrowSize * 0.55];
-  const p3 = [baseX + perpX * arrowSize * 0.55, baseY + perpY * arrowSize * 0.55];
-  const arrow = `<polygon points="${[p1, p2, p3].map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ')}" fill="${ICON_COLOR}"/>`;
-
-  return body + bump + lensOuterCircle + lensHole + flash + arc + arrow;
+  return body + bump + lens + lensHole + label;
 };
 
 /** Default on-screen size (px) for the circle marker in interactive views. */
-export const WAYPOINT_MARKER_SIZE = { width: 28, height: 28 };
+export const WAYPOINT_MARKER_SIZE = { width: 30, height: 30 };
 
 /**
  * Builds the circle waypoint marker SVG markup for a capture method: a
  * filled circle with a white border, sized/anchored at its center, and a
- * simple white icon (drone, or camera-with-circular-arrow for 360_camera).
+ * simple white icon (drone, or camera + "360" for 360_camera).
  */
 export function buildCircleMarkerSvg(captureMethod, { width, height } = {}) {
   const fillColor = FILL_COLORS[captureMethod] || FILL_COLORS['360_camera'];
   const strokeWidth = RADIUS * 2 * STROKE_WIDTH_RATIO;
-  const iconScale = captureMethod === 'drone' ? RADIUS * 0.72 : RADIUS * 0.78;
+  const iconScale = captureMethod === 'drone' ? RADIUS * 0.72 : RADIUS * 0.82;
   const icon =
     captureMethod === 'drone'
       ? droneIconMarkup(CENTER, CENTER, iconScale)

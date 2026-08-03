@@ -37,7 +37,7 @@ EXPORT_KEY_TEMPLATE = "projects/{project_id}/photos-pdf-exports/{export_id}.pdf"
 MARKER_LINK_PADDING = 6
 # Bump when marker artwork or hyperlink URL shape changes so stale PDFs
 # (wrong icons / wrong origin / missing ?photo=) are not reused.
-PDF_RENDER_VERSION = "3"
+PDF_RENDER_VERSION = "4"
 
 # Same exception type as photos_export_shared/photos_link_export_service, so
 # either module's validation failures are caught identically by the API route.
