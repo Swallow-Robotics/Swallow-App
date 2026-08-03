@@ -9,8 +9,13 @@ import {
   DRAWING_ZOOM_STEP,
 } from '../../utils/drawingPanZoom';
 
+const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
 /**
- * Pan/zoom drawing surface: click places a point, drag pans, wheel zooms.
+ * Pan/zoom drawing surface: click places a point, one-finger/mouse drag
+ * pans, wheel zooms, and two-finger touch pinches to zoom (centered on the
+ * gesture midpoint) while also panning as the midpoint moves.
  */
 const DrawingPanZoomSurface = ({
   src,
@@ -27,8 +32,12 @@ const DrawingPanZoomSurface = ({
   style,
 }) => {
   const containerRef = useRef(null);
+  // Active pointers by pointerId, so a second touch doesn't clobber the
+  // first — needed to tell a one-finger drag from a two-finger pinch.
+  const pointersRef = useRef(new Map());
   const pointerRef = useRef(null);
   const dragRef = useRef(null);
+  const pinchRef = useRef(null);
   const transformRef = useRef({ scale: 1, x: 0, y: 0 });
   const baseScaleRef = useRef(1);
   const [baseScale, setBaseScale] = useState(1);
@@ -106,16 +115,88 @@ const DrawingPanZoomSurface = ({
     return () => container.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
-  const handlePointerDown = e => {
-    if (e.button !== 0) return;
-    pointerRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      moved: false,
+  const beginPinch = () => {
+    const points = Array.from(pointersRef.current.values());
+    const [a, b] = points;
+    pinchRef.current = {
+      startDist: distance(a, b) || 1,
+      startMid: midpoint(a, b),
+      startTransform: { ...transformRef.current },
     };
   };
 
+  const resumeSinglePointerDrag = () => {
+    const [remaining] = Array.from(pointersRef.current.values());
+    if (!remaining) return;
+    // Continue panning from here without a jump — this is a continuation
+    // of an existing gesture (finger lifted mid-pinch), not a fresh click.
+    pointerRef.current = { startX: remaining.x, startY: remaining.y, moved: true };
+    dragRef.current = {
+      startX: remaining.x,
+      startY: remaining.y,
+      originX: transformRef.current.x,
+      originY: transformRef.current.y,
+    };
+  };
+
+  const handlePointerDown = e => {
+    if (e.button !== 0) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+
+    if (pointersRef.current.size === 1) {
+      pinchRef.current = null;
+      pointerRef.current = { startX: e.clientX, startY: e.clientY, moved: false };
+      dragRef.current = null;
+    } else if (pointersRef.current.size === 2) {
+      // A second finger just touched down: this is now a pinch, not a tap
+      // or a one-finger pan/click.
+      pointerRef.current = null;
+      dragRef.current = null;
+      beginPinch();
+    }
+  };
+
   const handlePointerMove = e => {
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointersRef.current.size >= 2 && pinchRef.current) {
+      const container = containerRef.current;
+      if (!container) return;
+      const [a, b] = Array.from(pointersRef.current.values());
+      const rect = container.getBoundingClientRect();
+      const toLocal = point => ({
+        x: point.x - rect.left - rect.width / 2,
+        y: point.y - rect.top - rect.height / 2,
+      });
+
+      const { startDist, startMid, startTransform } = pinchRef.current;
+      const nextScale = clamp(
+        startTransform.scale * (distance(a, b) / startDist),
+        DRAWING_MIN_SCALE,
+        DRAWING_MAX_SCALE,
+      );
+      const zoomRatio = nextScale / startTransform.scale;
+
+      const focalStart = toLocal(startMid);
+      const focalNow = toLocal(midpoint(a, b));
+
+      setTransform({
+        scale: nextScale,
+        x:
+          focalStart.x -
+          (focalStart.x - startTransform.x) * zoomRatio +
+          (focalNow.x - focalStart.x),
+        y:
+          focalStart.y -
+          (focalStart.y - startTransform.y) * zoomRatio +
+          (focalNow.y - focalStart.y),
+      });
+      return;
+    }
+
+    if (pointersRef.current.size !== 1) return;
     const pointer = pointerRef.current;
     if (!pointer) return;
 
@@ -134,7 +215,6 @@ const DrawingPanZoomSurface = ({
         originX: transformRef.current.x,
         originY: transformRef.current.y,
       };
-      e.currentTarget.setPointerCapture?.(e.pointerId);
     }
 
     const drag = dragRef.current;
@@ -148,22 +228,36 @@ const DrawingPanZoomSurface = ({
   };
 
   const handlePointerUp = e => {
-    const pointer = pointerRef.current;
-    if (pointer && !pointer.moved && onImageClick) {
-      const pixel = clientToImagePixel(
-        e.clientX,
-        e.clientY,
-        containerRef.current,
-        nativeW,
-        nativeH,
-        transformRef.current,
-        baseScaleRef.current,
-      );
-      if (pixel) onImageClick(pixel);
-    }
-    pointerRef.current = null;
-    dragRef.current = null;
+    const wasTracked = pointersRef.current.has(e.pointerId);
+    pointersRef.current.delete(e.pointerId);
     e.currentTarget.releasePointerCapture?.(e.pointerId);
+    if (!wasTracked) return;
+
+    if (pointersRef.current.size === 0) {
+      const pointer = pointerRef.current;
+      if (pointer && !pointer.moved && onImageClick) {
+        const pixel = clientToImagePixel(
+          e.clientX,
+          e.clientY,
+          containerRef.current,
+          nativeW,
+          nativeH,
+          transformRef.current,
+          baseScaleRef.current,
+        );
+        if (pixel) onImageClick(pixel);
+      }
+      pointerRef.current = null;
+      dragRef.current = null;
+      pinchRef.current = null;
+    } else if (pointersRef.current.size === 1) {
+      pinchRef.current = null;
+      resumeSinglePointerDrag();
+    } else {
+      // 3+ fingers were down and one lifted — re-baseline the pinch from
+      // the two remaining pointers so it continues without a jump.
+      beginPinch();
+    }
   };
 
   const handleContextMenu = useCallback(
@@ -236,6 +330,7 @@ const DrawingPanZoomSurface = ({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onContextMenu={handleContextMenu}
       style={{

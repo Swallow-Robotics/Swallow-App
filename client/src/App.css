@@ -581,7 +581,8 @@
 
 .drawings-page__controls {
   position: absolute;
-  z-index: 10;
+  /* Above MapLibre's WebGL canvas / ctrl stack so Back + Export stay visible in Map view */
+  z-index: 20;
   top: var(--space-md);
   left: var(--space-md);
   display: flex;

@@ -1,8 +1,9 @@
 """
-Generates or reuses a Photos page Public Link — a snapshot of every active
-photo for a project and capture method (across all dates) at a durable,
-unauthenticated URL. Additive to the Photos page; does not modify any
-existing photo, drawing, or waypoint endpoint.
+Generates or reuses a Photos page Public Link — a snapshot of the active
+photos for a project and capture method matching a date filter (all dates,
+one date, or a custom set of dates) at a durable, unauthenticated URL.
+Additive to the Photos page; does not modify any existing photo, drawing, or
+waypoint endpoint.
 """
 
 from flask import Blueprint, g, jsonify, request
@@ -40,6 +41,8 @@ def create_photos_link_export():
     project_id = (body.get("project_id") or "").strip()
     capture_method = (body.get("capture_method") or "").strip()
     drawing_id = (body.get("drawing_id") or "").strip() or None
+    date_mode = body.get("date_mode")
+    dates = body.get("dates")
 
     if not project_id or not capture_method:
         return jsonify({"error": "project_id and capture_method are required"}), 400
@@ -52,10 +55,12 @@ def create_photos_link_export():
         return jsonify(payload), status
 
     try:
-        token, url = get_or_create_photos_link(
+        result = get_or_create_photos_link(
             project_id=project_id,
             capture_method=capture_method,
             requested_drawing_id=drawing_id,
+            date_mode_input=date_mode,
+            dates_input=dates,
             user_id=user_id,
             request_url_root=request.url_root,
         )
@@ -64,4 +69,14 @@ def create_photos_link_export():
     except Exception as exc:  # pragma: no cover - unexpected failures
         return jsonify({"error": f"Failed to create Public Link: {exc}"}), 500
 
-    return jsonify({"token": token, "url": url}), 201
+    return (
+        jsonify(
+            {
+                "token": result["token"],
+                "url": result["url"],
+                "date_mode": result["date_mode"],
+                "selected_dates": result["selected_dates"],
+            }
+        ),
+        201,
+    )

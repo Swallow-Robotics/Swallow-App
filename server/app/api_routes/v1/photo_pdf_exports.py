@@ -1,7 +1,8 @@
 """
-Generates a PDF of a Photos page drawing with waypoint markers hyperlinked to
-the public photo viewer, for photos captured on a selected date. Additive to
-the Photos page; does not modify any existing photo, drawing, or waypoint
+Generates a PDF of a Photos page drawing with waypoint markers deep-linked
+into the matching Public Link viewer, for active photos matching a date
+filter (all dates, one date, or a custom set of dates). Additive to the
+Photos page; does not modify any existing photo, drawing, or waypoint
 endpoint.
 """
 
@@ -36,24 +37,18 @@ def create_photo_pdf_export():
 
     body = request.get_json(silent=True) or {}
     project_id = (body.get("project_id") or "").strip()
-    drawing_id = (body.get("drawing_id") or "").strip()
+    drawing_id = (body.get("drawing_id") or "").strip() or None
     capture_method = (body.get("capture_method") or "").strip()
-    date_key = (body.get("date") or "").strip()
-    items = body.get("items") or []
+    date_mode = body.get("date_mode")
+    dates = body.get("dates")
 
-    if not project_id or not drawing_id or not capture_method or not date_key:
+    if not project_id or not capture_method:
         return (
-            jsonify(
-                {
-                    "error": "project_id, drawing_id, capture_method, and date are required"
-                }
-            ),
+            jsonify({"error": "project_id and capture_method are required"}),
             400,
         )
     if capture_method not in ALLOWED_CAPTURE_METHODS:
         return jsonify({"error": "capture_method must be drone or 360_camera"}), 400
-    if not isinstance(items, list) or not items:
-        return jsonify({"error": "No photos found for the selected date"}), 400
 
     permission = require_role(project_id, VIEW_ROLES, user_id=user_id)
     if isinstance(permission, tuple):
@@ -65,8 +60,8 @@ def create_photo_pdf_export():
             project_id=project_id,
             drawing_id=drawing_id,
             capture_method=capture_method,
-            date_key=date_key,
-            requested_items=items,
+            date_mode_input=date_mode,
+            dates_input=dates,
             user_id=user_id,
             request_url_root=request.url_root,
         )

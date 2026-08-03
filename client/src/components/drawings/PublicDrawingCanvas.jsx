@@ -14,6 +14,7 @@ const PublicDrawingCanvas = ({
   height,
   waypointMarkers,
   onWaypointClick,
+  captureMethod,
 }) => {
   const nativeW = Number(width) || 1;
   const nativeH = Number(height) || 1;
@@ -34,13 +35,14 @@ const PublicDrawingCanvas = ({
           {(waypointMarkers || []).map(marker => {
             const pos = toScreen(marker.pixelX, marker.pixelY);
             return (
-              <SimpleWaypointMarker
-                key={marker.waypoint_id}
-                marker={marker}
-                screenX={pos.x}
-                screenY={pos.y}
-                onClick={onWaypointClick}
-              />
+                <SimpleWaypointMarker
+                  key={marker.waypoint_id}
+                  marker={marker}
+                  screenX={pos.x}
+                  screenY={pos.y}
+                  onClick={onWaypointClick}
+                  captureMethod={captureMethod}
+                />
             );
           })}
         </>

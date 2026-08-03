@@ -10,6 +10,7 @@
 
 import maplibregl from 'maplibre-gl';
 import { toLngLat, parseCoordinate } from './mapDataUtils';
+import { buildCircleMarkerSvg, WAYPOINT_MARKER_SIZE } from './waypointMarkerIcons';
 
 /**
  * Removes all waypoint markers and the project pin from the map.
@@ -243,19 +244,26 @@ export function addWaypointMarkersToMap(map, refs, options) {
 }
 
 /**
- * Read-only variant for the public Photos Link viewer: same camera-icon pin
- * as the authenticated Photos map, no project pin, no drag/edit affordances.
+ * Read-only variant for the public Photos Link viewer: a circle marker,
+ * colored/iconed by capture method (see waypointMarkerIcons.js), no project
+ * pin, no drag/edit affordances. Center-anchored (not bottom-anchored like
+ * the authenticated pin).
  *
  * @returns {{ bounds: maplibregl.LngLatBounds }}
  */
 export function addSimpleWaypointMarkersToMap(map, refs, options) {
   if (!map || !refs) return { bounds: null };
 
-  const { waypoints = [], onWaypointClick = () => {} } = options || {};
+  const {
+    waypoints = [],
+    onWaypointClick = () => {},
+    captureMethod = '360_camera',
+  } = options || {};
   const { markersRef } = refs;
   clearWaypointMarkers(refs);
 
   const bounds = new maplibregl.LngLatBounds();
+  const { width, height } = WAYPOINT_MARKER_SIZE;
 
   waypoints.forEach((waypoint) => {
     const lngLat = toLngLat(waypoint.lng, waypoint.lat);
@@ -263,13 +271,13 @@ export function addSimpleWaypointMarkersToMap(map, refs, options) {
     bounds.extend(lngLat);
 
     const el = document.createElement('div');
-    el.style.width = '28px';
-    el.style.height = '36px';
+    el.style.width = `${width}px`;
+    el.style.height = `${height}px`;
     el.style.cursor = 'pointer';
     el.style.userSelect = 'none';
     el.style.lineHeight = '0';
     el.style.filter = 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))';
-    el.innerHTML = WAYPOINT_PIN_SVG;
+    el.innerHTML = buildCircleMarkerSvg(captureMethod, { width, height });
     el.title = waypoint.waypoint_name || 'Waypoint';
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
@@ -290,7 +298,7 @@ export function addSimpleWaypointMarkersToMap(map, refs, options) {
       }
     });
 
-    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat(lngLat)
       .addTo(map);
     if (markersRef) markersRef.current.push(marker);

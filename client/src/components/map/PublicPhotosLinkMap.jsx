@@ -16,7 +16,7 @@ import { BasemapToggleControl } from '../../utils/basemapToggleControl';
  * map-only links or the Map toggle). No project pin, drag mode, or edit
  * affordances — those are authenticated-only Photos page features.
  */
-const PublicPhotosLinkMap = ({ waypoints, onWaypointClick }) => {
+const PublicPhotosLinkMap = ({ waypoints, onWaypointClick, captureMethod }) => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -77,7 +77,7 @@ const PublicPhotosLinkMap = ({ waypoints, onWaypointClick }) => {
     const { bounds } = addSimpleWaypointMarkersToMap(
       mapInstance.current,
       markerRefs,
-      { waypoints, onWaypointClick },
+      { waypoints, onWaypointClick, captureMethod },
     );
     if (!hasAutoFitRef.current && bounds && !bounds.isEmpty()) {
       mapInstance.current.fitBounds(bounds, {
@@ -88,7 +88,7 @@ const PublicPhotosLinkMap = ({ waypoints, onWaypointClick }) => {
       hasAutoFitRef.current = true;
     }
     return () => clearWaypointMarkers(markerRefs);
-  }, [waypoints, onWaypointClick, isMapReady, markerRefs]);
+  }, [waypoints, onWaypointClick, captureMethod, isMapReady, markerRefs]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>

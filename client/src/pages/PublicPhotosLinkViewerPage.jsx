@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import PanoramaViewer from '../components/photo/PanoramaViewer';
 import PanZoomImage from '../components/photo/PanZoomImage';
 import PublicHeaderBanner from '../components/photo/PublicHeaderBanner';
@@ -30,6 +30,8 @@ const sortByTakenAtAsc = (a, b) => {
  */
 const PublicPhotosLinkViewerPage = () => {
   const { token } = useParams();
+  const [searchParams] = useSearchParams();
+  const deepLinkPhotoId = searchParams.get('photo');
 
   const [link, setLink] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,19 +45,35 @@ const PublicPhotosLinkViewerPage = () => {
   const [photoDetail, setPhotoDetail] = useState(null);
   const [photoError, setPhotoError] = useState('');
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+  const deepLinkAppliedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
     setError('');
+    deepLinkAppliedRef.current = false;
     publicPhotosLinkService
       .getLink(token)
       .then(resp => {
         if (cancelled) return;
         const data = resp?.link || null;
         setLink(data);
-        if (data) {
-          setView(data.drawing ? 'drawing' : 'map');
+        if (!data) return;
+        const defaultView = data.drawing ? 'drawing' : 'map';
+        if (deepLinkPhotoId) {
+          const targetId = String(deepLinkPhotoId).trim().toLowerCase();
+          const match = (data.waypoints || [])
+            .flatMap(wp => wp.photos || [])
+            .find(
+              photo =>
+                String(photo.photo_id || '').trim().toLowerCase() === targetId,
+            );
+          deepLinkAppliedRef.current = true;
+          setPriorView(defaultView);
+          setActivePhotoId(match?.photo_id || deepLinkPhotoId);
+          setView('photo');
+        } else {
+          setView(defaultView);
         }
       })
       .catch(err => {
@@ -73,7 +91,24 @@ const PublicPhotosLinkViewerPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, deepLinkPhotoId]);
+
+  // Deep-link from a PDF marker (?photo=<id>): land in the immersive photo
+  // view for that waypoint photo, with Back wired to drawing/map. Apply once
+  // so Back / in-viewer navigation are not forced back into photo view.
+  useEffect(() => {
+    if (!link || !deepLinkPhotoId || deepLinkAppliedRef.current) return;
+    deepLinkAppliedRef.current = true;
+    const targetId = String(deepLinkPhotoId).trim().toLowerCase();
+    const match = (link.waypoints || [])
+      .flatMap(wp => wp.photos || [])
+      .find(photo => String(photo.photo_id || '').trim().toLowerCase() === targetId);
+
+    const defaultView = link.drawing ? 'drawing' : 'map';
+    setPriorView(defaultView);
+    setActivePhotoId(match?.photo_id || deepLinkPhotoId);
+    setView('photo');
+  }, [link, deepLinkPhotoId]);
 
   const captureMethod = link?.capture_method;
   const hasDrawing = !!link?.drawing;
@@ -283,6 +318,7 @@ const PublicPhotosLinkViewerPage = () => {
             <PublicPhotosLinkMap
               waypoints={mapWaypoints}
               onWaypointClick={setSelectedWaypoint}
+              captureMethod={captureMethod}
             />
             {canToggleMapDrawing ? (
               <div
@@ -308,6 +344,7 @@ const PublicPhotosLinkViewerPage = () => {
                 height={link.drawing.height}
                 waypointMarkers={drawingMarkers}
                 onWaypointClick={setSelectedWaypoint}
+                captureMethod={captureMethod}
               />
             ) : null}
             {canToggleMapDrawing ? (

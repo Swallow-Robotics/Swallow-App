@@ -15,9 +15,7 @@ import DrawingCanvas from '../components/drawings/DrawingCanvas';
 import WaypointPhotosModal from '../components/map/WaypointPhotosModal';
 import EditLocationModal from '../components/map/EditLocationModal';
 import UploadPhotosModal from '../components/photo/UploadPhotosModal';
-import PdfExportModal from '../components/photo/PdfExportModal';
-import PublicLinkModal from '../components/photo/PublicLinkModal';
-import photosLinkExportService from '../services/photosLinkExportService';
+import ExportModal from '../components/photo/ExportModal';
 import PhotoMapLive from '../PhotoMapLive';
 import PhotoLibraryPage from './PhotoLibraryPage';
 import {
@@ -246,34 +244,6 @@ const OptionsPopup = ({
 };
 
 // ---------------------------------------------------------------------------
-// Export popup — PDF Export moved here from Options, plus the new Public Link
-// ---------------------------------------------------------------------------
-const ExportPopup = ({ onPdfExport, onPublicLink, onClose }) => {
-  const popupRef = useRef(null);
-
-  useEffect(() => {
-    const handleClick = e => {
-      if (popupRef.current && !popupRef.current.contains(e.target)) {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [onClose]);
-
-  return (
-    <div ref={popupRef} className="photos-page__options-popup">
-      <button type="button" className="btn-menu-item" onClick={onPdfExport}>
-        PDF Export
-      </button>
-      <button type="button" className="btn-menu-item" onClick={onPublicLink}>
-        Public Link
-      </button>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
 // Site / Floor mode toggle — matches Standard / Satellite basemap toggle style
 // ---------------------------------------------------------------------------
 const ModeToggle = ({ viewMode, setViewMode }) => (
@@ -347,12 +317,7 @@ const PhotosPage = () => {
   const [drawingsModalOpen, setDrawingsModalOpen] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [pdfExportOpen, setPdfExportOpen] = useState(false);
-  const [publicLinkOpen, setPublicLinkOpen] = useState(false);
-  const [publicLinkUrl, setPublicLinkUrl] = useState('');
-  const [publicLinkLoading, setPublicLinkLoading] = useState(false);
-  const [publicLinkError, setPublicLinkError] = useState('');
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   // Site plan only
   const [alignModalOpen, setAlignModalOpen] = useState(false);
@@ -690,27 +655,6 @@ const PhotosPage = () => {
     setPendingWaypointPixel(null);
   }, []);
 
-  const handlePublicLink = useCallback(async () => {
-    setPublicLinkOpen(true);
-    setPublicLinkLoading(true);
-    setPublicLinkError('');
-    setPublicLinkUrl('');
-    try {
-      const resp = await photosLinkExportService.createOrReuse({
-        projectId,
-        captureMethod: isSitePlan ? 'drone' : '360_camera',
-        drawingId: activeDrawingId,
-      });
-      setPublicLinkUrl(resp?.url || '');
-    } catch (err) {
-      setPublicLinkError(
-        err?.payload?.error || err?.message || 'Failed to create Public Link.',
-      );
-    } finally {
-      setPublicLinkLoading(false);
-    }
-  }, [projectId, isSitePlan, activeDrawingId]);
-
   const waypointMarkers = isSitePlan
     ? sitePlanWaypointMarkers
     : floorWaypointMarkers;
@@ -750,7 +694,7 @@ const PhotosPage = () => {
     return (
       <div className="drawings-page">
         <div className="drawings-page__canvas-wrapper">
-          <PhotoMapLive />
+          <PhotoMapLive onExport={() => setExportModalOpen(true)} />
           <div className="drawings-page__controls">
             <button
               type="button"
@@ -772,6 +716,13 @@ const PhotosPage = () => {
               : null
           }
           mapInstance={null}
+        />
+        <ExportModal
+          open={exportModalOpen}
+          projectId={projectId}
+          drawingId={activeDrawingId}
+          isSitePlan={isSitePlan}
+          onClose={() => setExportModalOpen(false)}
         />
       </div>
     );
@@ -954,7 +905,7 @@ const PhotosPage = () => {
                 type="button"
                 className="btn-format-1 drawings-page__tool-btn"
                 onClick={() => {
-                  setExportOpen(false);
+                  setExportModalOpen(false);
                   setOptionsOpen(o => !o);
                 }}
               >
@@ -996,24 +947,11 @@ const PhotosPage = () => {
                 className="btn-format-1 drawings-page__tool-btn"
                 onClick={() => {
                   setOptionsOpen(false);
-                  setExportOpen(o => !o);
+                  setExportModalOpen(true);
                 }}
               >
                 Export
               </button>
-              {exportOpen ? (
-                <ExportPopup
-                  onPdfExport={() => {
-                    setExportOpen(false);
-                    setPdfExportOpen(true);
-                  }}
-                  onPublicLink={() => {
-                    setExportOpen(false);
-                    handlePublicLink();
-                  }}
-                  onClose={() => setExportOpen(false)}
-                />
-              ) : null}
             </div>
             {(isAddWaypointMode || !!movingWaypointId) ? (
               <button
@@ -1087,20 +1025,12 @@ const PhotosPage = () => {
           onUploaded={fetchFloorWaypoints}
         />
 
-        <PdfExportModal
-          open={pdfExportOpen}
+        <ExportModal
+          open={exportModalOpen}
           projectId={projectId}
           drawingId={activeDrawingId}
           isSitePlan={isSitePlan}
-          onClose={() => setPdfExportOpen(false)}
-        />
-
-        <PublicLinkModal
-          open={publicLinkOpen}
-          url={publicLinkUrl}
-          isLoading={publicLinkLoading}
-          error={publicLinkError}
-          onClose={() => setPublicLinkOpen(false)}
+          onClose={() => setExportModalOpen(false)}
         />
       </div>
     </>

@@ -1,34 +1,47 @@
 """
-Builds a PDF export of a Photos page drawing with waypoint markers hyperlinked
-to the public photo viewer, for one photo per waypoint on a selected date.
+Builds a PDF export of a Photos page drawing with waypoint markers deep-
+linked into the matching Public Link viewer, for the active photos matching
+a date filter (all dates, one date, or a custom set of dates).
 
-Client-selected {waypoint_id, photo_id} pairs are treated as a proposal only:
-every item is re-validated against the database (active photo, matching
-capture method, matching waypoint, matching project/drawing) and every marker
-position is re-derived server-side from the drawing's affine transform or the
-waypoint's stored pixel coordinates — never trusted from the client.
+Every input is re-derived server-side via photos_export_shared — the
+project's active photos, the frozen/aligned drawing, and the date filter are
+never trusted from the client. Every PDF export also creates or reuses the
+matching photos_link_export row (same project, capture method, drawing
+freeze, and date-filtered photo set) so marker hyperlinks always land in a
+real, working Public Link experience instead of a dead end.
 """
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
+import hashlib
 
 import fitz  # PyMuPDF
 
-from app.services.public_photo_service import ensure_public_token
+from app.services.photos_export_shared import (
+    ALLOWED_CAPTURE_METHODS,
+    PhotosExportError,
+    collect_active_items,
+    resolve_frozen_drawing_id,
+    validate_date_filter,
+)
+from app.services.photos_link_export_service import get_or_create_photos_link_row
 from app.services.storage.r2_client import r2_client
 from app.services.storage.supabase_client import supabase_client
 from app.utils.affine_transform import geo_to_pixel
-from app.utils.pdf_pin import draw_waypoint_pin
+from app.utils.pdf_pin import draw_waypoint_marker
 from app.utils.public_origin import get_public_app_origin
 
-EXPORT_TABLE = "photo_pdf_exports"
-EXPORT_KEY_TEMPLATE = "projects/{project_id}/photo-pdf-exports/{export_id}.pdf"
+EXPORT_TABLE = "photos_pdf_export"
+EXPORT_KEY_TEMPLATE = "projects/{project_id}/photos-pdf-exports/{export_id}.pdf"
 MARKER_LINK_PADDING = 6
+# Bump when marker artwork or hyperlink URL shape changes so stale PDFs
+# (wrong icons / wrong origin / missing ?photo=) are not reused.
+PDF_RENDER_VERSION = "3"
 
-
-class PhotoPdfExportError(Exception):
-    """Raised for user-correctable PDF export failures (surfaced as HTTP 400)."""
+# Same exception type as photos_export_shared/photos_link_export_service, so
+# either module's validation failures are caught identically by the API route.
+PhotoPdfExportError = PhotosExportError
 
 
 def _get_drawing(drawing_id: str) -> Dict[str, Any]:
@@ -55,18 +68,6 @@ def _download_drawing_image(drawing: Dict[str, Any]) -> bytes:
     return image_bytes
 
 
-def _fetch_photo_row(photo_id: str) -> Optional[Dict[str, Any]]:
-    resp = (
-        supabase_client.client.table("photos")
-        .select("*")
-        .eq("photo_id", photo_id)
-        .limit(1)
-        .execute()
-    )
-    rows = resp.data or []
-    return rows[0] if rows else None
-
-
 def _fetch_waypoint_row(waypoint_id: str) -> Optional[Dict[str, Any]]:
     resp = (
         supabase_client.client.table("waypoints")
@@ -77,27 +78,6 @@ def _fetch_waypoint_row(waypoint_id: str) -> Optional[Dict[str, Any]]:
     )
     rows = resp.data or []
     return rows[0] if rows else None
-
-
-def _photo_belongs_to_project(
-    photo: Dict[str, Any], project_id: str, is_site_plan: bool
-) -> bool:
-    """Site plan photos are project-scoped via flights; floor plan ownership
-    is enforced separately via the waypoint's drawing_id."""
-    if not is_site_plan:
-        return True
-    flight_id = photo.get("flight_id")
-    if not flight_id:
-        return False
-    resp = (
-        supabase_client.client.table("flights")
-        .select("project_id")
-        .eq("flight_id", flight_id)
-        .limit(1)
-        .execute()
-    )
-    rows = resp.data or []
-    return bool(rows) and rows[0].get("project_id") == project_id
 
 
 def _resolve_site_pixel(
@@ -120,40 +100,48 @@ def _resolve_floor_pixel(
     return float(px), float(py)
 
 
-def _validate_and_collect_items(
-    project_id: str,
-    drawing: Dict[str, Any],
-    capture_method: str,
-    requested_items: List[Dict[str, Any]],
+def _group_by_waypoint_with_newest_photo(
+    items: List[Dict[str, str]]
+) -> List[Dict[str, str]]:
+    """Pick the newest active photo per waypoint — the marker's deep-link
+    target — from the already date-filtered, active-photo item snapshot."""
+    photo_ids = sorted({item["photo_id"] for item in items})
+    if not photo_ids:
+        return []
+    resp = (
+        supabase_client.client.table("photos")
+        .select("photo_id, taken_at")
+        .in_("photo_id", photo_ids)
+        .execute()
+    )
+    taken_at_by_photo = {row["photo_id"]: row.get("taken_at") or "" for row in (resp.data or [])}
+
+    newest_by_waypoint: Dict[str, Dict[str, str]] = {}
+    for item in items:
+        waypoint_id, photo_id = item["waypoint_id"], item["photo_id"]
+        taken_at = taken_at_by_photo.get(photo_id, "")
+        current = newest_by_waypoint.get(waypoint_id)
+        if not current or taken_at > current["taken_at"]:
+            newest_by_waypoint[waypoint_id] = {
+                "waypoint_id": waypoint_id,
+                "photo_id": photo_id,
+                "taken_at": taken_at,
+            }
+    return list(newest_by_waypoint.values())
+
+
+def _resolve_pixel_positions(
+    waypoint_items: List[Dict[str, str]], drawing: Dict[str, Any], capture_method: str
 ) -> List[Dict[str, Any]]:
-    """Re-validate client-proposed items and resolve each waypoint's pixel
-    position on the given drawing. One entry per waypoint, at most."""
+    """Re-derive each waypoint's marker position server-side from the
+    drawing's affine transform (site plan) or stored pixel coords (floor
+    plan) — never trusted from the client."""
     is_site_plan = capture_method == "drone"
-    if is_site_plan and not drawing.get("aligned"):
-        raise PhotoPdfExportError("Align this drawing before exporting a PDF.")
-
     resolved: List[Dict[str, Any]] = []
-    seen_waypoints = set()
-    for item in requested_items:
-        waypoint_id = (item or {}).get("waypoint_id")
-        photo_id = (item or {}).get("photo_id")
-        if not waypoint_id or not photo_id or waypoint_id in seen_waypoints:
-            continue
-
-        photo = _fetch_photo_row(photo_id)
-        if (
-            not photo
-            or not photo.get("active_photo")
-            or photo.get("capture_method") != capture_method
-            or photo.get("waypoint_id") != waypoint_id
-            or not _photo_belongs_to_project(photo, project_id, is_site_plan)
-        ):
-            continue
-
-        waypoint = _fetch_waypoint_row(waypoint_id)
+    for item in waypoint_items:
+        waypoint = _fetch_waypoint_row(item["waypoint_id"])
         if not waypoint:
             continue
-
         pixel = (
             _resolve_site_pixel(waypoint, drawing)
             if is_site_plan
@@ -161,73 +149,53 @@ def _validate_and_collect_items(
         )
         if not pixel:
             continue
-
-        seen_waypoints.add(waypoint_id)
         resolved.append(
             {
-                "waypoint_id": waypoint_id,
-                "photo_id": photo_id,
+                "waypoint_id": item["waypoint_id"],
+                "photo_id": item["photo_id"],
                 "pixel_x": pixel[0],
                 "pixel_y": pixel[1],
             }
         )
-
     if not resolved:
-        raise PhotoPdfExportError(
-            "No valid waypoint photos found for the selected date."
-        )
+        raise PhotoPdfExportError("No valid waypoint photos found for the selected dates.")
     return resolved
-
-
-def _ensure_tokens(items: List[Dict[str, Any]]) -> Dict[str, str]:
-    tokens: Dict[str, str] = {}
-    for item in items:
-        token = ensure_public_token(item["photo_id"])
-        if token:
-            tokens[item["photo_id"]] = token
-    return tokens
 
 
 def _render_pdf(
     image_bytes: bytes,
     items: List[Dict[str, Any]],
-    tokens: Dict[str, str],
+    capture_method: str,
+    link_token: str,
     public_origin: str,
 ) -> bytes:
-    """Draw the drawing image on a single PDF page, then overlay a marker and
-    a clickable URI link annotation for each included waypoint.
-
-    Markers are simplified Barn Swallow pins matching the Photos page pin
-    shape and primary color, tip-anchored on the waypoint pixel (Photos pins
-    are tip-anchored, unlike the circles this replaced)."""
+    """Draw the drawing image on a single PDF page, then overlay a circular
+    waypoint marker and a clickable URI link for each included waypoint,
+    deep-linking into the matching Public Link viewer's immersive photo view
+    (not the dead-end single-photo public viewer)."""
     pixmap = fitz.Pixmap(image_bytes)
-    # Same relative-sizing basis as the previous circle marker, just re-read
-    # as a pin height instead of a radius so pins stay proportionate to the
-    # drawing rather than dominating it.
-    size_basis = max(10.0, min(pixmap.width, pixmap.height) * 0.012)
-    pin_height = size_basis * 2.4
+    size_basis = max(10.0, min(pixmap.width, pixmap.height) * 0.014)
+    marker_diameter = size_basis * 2.0
 
     doc = fitz.open()
     page = doc.new_page(width=pixmap.width, height=pixmap.height)
     page.insert_image(fitz.Rect(0, 0, pixmap.width, pixmap.height), pixmap=pixmap)
 
     for item in items:
-        token = tokens.get(item["photo_id"])
-        if not token:
-            continue
-        tip_x, tip_y = item["pixel_x"], item["pixel_y"]
-        pin_rect = draw_waypoint_pin(page, tip_x, tip_y, pin_height)
+        marker_rect = draw_waypoint_marker(
+            page, item["pixel_x"], item["pixel_y"], marker_diameter, capture_method
+        )
         link_rect = fitz.Rect(
-            pin_rect.x0 - MARKER_LINK_PADDING,
-            pin_rect.y0 - MARKER_LINK_PADDING,
-            pin_rect.x1 + MARKER_LINK_PADDING,
-            pin_rect.y1 + MARKER_LINK_PADDING,
+            marker_rect.x0 - MARKER_LINK_PADDING,
+            marker_rect.y0 - MARKER_LINK_PADDING,
+            marker_rect.x1 + MARKER_LINK_PADDING,
+            marker_rect.y1 + MARKER_LINK_PADDING,
         )
         page.insert_link(
             {
                 "kind": fitz.LINK_URI,
                 "from": link_rect,
-                "uri": f"{public_origin}/public/photos/{token}",
+                "uri": f"{public_origin}/public/photos-link/{link_token}?photo={item['photo_id']}",
             }
         )
 
@@ -245,35 +213,54 @@ def _upload_export_pdf(project_id: str, pdf_bytes: bytes) -> Tuple[str, str]:
     return export_id, r2_key
 
 
+def _find_existing_pdf_by_hash(content_hash: str) -> Optional[Dict[str, Any]]:
+    resp = (
+        supabase_client.client.table(EXPORT_TABLE)
+        .select("*")
+        .eq("content_hash", content_hash)
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    return rows[0] if rows else None
+
+
+def _pdf_reuse_hash(snapshot_hash: str, public_origin: str) -> str:
+    """PDF-specific reuse key: same photo snapshot can still need a different
+    PDF when the public origin or render version changes (baked-in links/icons)."""
+    canonical = f"{snapshot_hash}|{public_origin}|{PDF_RENDER_VERSION}"
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _insert_export_record(
     export_id: str,
     project_id: str,
     user_id: str,
-    drawing_id: str,
-    date_key: str,
+    drawing_id: Optional[str],
+    date_mode: str,
+    dates: List[str],
     capture_method: str,
     r2_key: str,
     items: List[Dict[str, Any]],
-    tokens: Dict[str, str],
+    content_hash: str,
+    link_export_id: Optional[str],
 ) -> Dict[str, Any]:
     included_items = [
-        {
-            "waypoint_id": item["waypoint_id"],
-            "photo_id": item["photo_id"],
-            "public_token": tokens.get(item["photo_id"]),
-        }
-        for item in items
+        {"waypoint_id": item["waypoint_id"], "photo_id": item["photo_id"]} for item in items
     ]
     row = {
         "export_id": export_id,
         "project_id": project_id,
         "user_id": user_id,
         "drawing_id": drawing_id,
-        "selected_date": date_key,
+        "date_mode": date_mode,
+        "selected_dates": dates,
         "capture_method": capture_method,
         "r2_path": r2_key,
         "r2_url": r2_client.get_file_url(r2_key),
         "included_items": included_items,
+        "content_hash": content_hash,
+        "link_export_id": link_export_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     resp = supabase_client.client.table(EXPORT_TABLE).insert(row).execute()
@@ -281,49 +268,83 @@ def _insert_export_record(
     return rows[0] if rows else row
 
 
+def _build_filename(date_mode: str, dates: List[str]) -> str:
+    if date_mode == "all":
+        return "photos-all-dates.pdf"
+    if date_mode == "single":
+        return f"photos-{dates[0]}.pdf"
+    if len(dates) <= 4:
+        return f"photos-custom-{'_'.join(dates)}.pdf"
+    return f"photos-custom-{len(dates)}-dates.pdf"
+
+
 def build_photo_pdf_export(
     project_id: str,
-    drawing_id: str,
+    drawing_id: Optional[str],
     capture_method: str,
-    date_key: str,
-    requested_items: List[Dict[str, Any]],
+    date_mode_input: Optional[str],
+    dates_input: Optional[List[Any]],
     user_id: str,
     request_url_root: str,
 ) -> Tuple[bytes, str, Dict[str, Any]]:
-    """Generate, store, and record a Photos PDF export.
-
-    Returns (pdf_bytes, filename, export_record).
-    """
+    """Generate (or reuse), store, and record a Photos PDF export, ensuring
+    the matching Public Link exists first so PDF marker hyperlinks always
+    resolve. Returns (pdf_bytes, filename, export_record)."""
     if not supabase_client.client:
         raise PhotoPdfExportError("Database not configured.")
     if not r2_client.client:
         raise PhotoPdfExportError("Storage not configured.")
+    if capture_method not in ALLOWED_CAPTURE_METHODS:
+        raise PhotoPdfExportError("capture_method must be drone or 360_camera.")
 
-    drawing = _get_drawing(drawing_id)
-    if drawing.get("project_id") != project_id:
-        raise PhotoPdfExportError("Drawing does not belong to this project.")
+    date_mode, dates = validate_date_filter(date_mode_input, dates_input)
 
-    items = _validate_and_collect_items(
-        project_id, drawing, capture_method, requested_items
+    resolved_drawing_id = resolve_frozen_drawing_id(project_id, capture_method, drawing_id)
+    if capture_method == "drone" and not resolved_drawing_id:
+        raise PhotoPdfExportError("Align this drawing before exporting a PDF.")
+
+    items = collect_active_items(
+        project_id, capture_method, resolved_drawing_id, date_mode, dates
     )
+    if not items:
+        raise PhotoPdfExportError("No photos available for the selected dates.")
+
+    link_result = get_or_create_photos_link_row(
+        project_id, capture_method, resolved_drawing_id, date_mode, dates, items, user_id
+    )
+    snapshot_hash = link_result["content_hash"]
+    filename = _build_filename(date_mode, dates)
+    public_origin = get_public_app_origin(request_url_root)
+    pdf_hash = _pdf_reuse_hash(snapshot_hash, public_origin)
+
+    existing_pdf = _find_existing_pdf_by_hash(pdf_hash)
+    if existing_pdf and existing_pdf.get("r2_path"):
+        pdf_bytes = r2_client.download_bytes(existing_pdf["r2_path"])
+        if pdf_bytes:
+            return pdf_bytes, filename, existing_pdf
+
+    drawing = _get_drawing(resolved_drawing_id)
+    newest_by_waypoint = _group_by_waypoint_with_newest_photo(items)
+    resolved_items = _resolve_pixel_positions(newest_by_waypoint, drawing, capture_method)
     image_bytes = _download_drawing_image(drawing)
 
-    tokens = _ensure_tokens(items)
-    public_origin = get_public_app_origin(request_url_root)
-    pdf_bytes = _render_pdf(image_bytes, items, tokens, public_origin)
+    pdf_bytes = _render_pdf(
+        image_bytes, resolved_items, capture_method, link_result["token"], public_origin
+    )
 
     export_id, r2_key = _upload_export_pdf(project_id, pdf_bytes)
     export_record = _insert_export_record(
         export_id,
         project_id,
         user_id,
-        drawing_id,
-        date_key,
+        resolved_drawing_id,
+        date_mode,
+        dates,
         capture_method,
         r2_key,
-        items,
-        tokens,
+        resolved_items,
+        pdf_hash,
+        link_result["export_id"],
     )
 
-    filename = f"photos-{date_key}.pdf"
     return pdf_bytes, filename, export_record

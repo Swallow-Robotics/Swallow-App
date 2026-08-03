@@ -1,4 +1,5 @@
 import React from 'react';
+import { buildCircleMarkerSvg, WAYPOINT_MARKER_SIZE } from '../../utils/waypointMarkerIcons';
 
 const WAYPOINT_PIN_SVG =
   '<svg width="34" height="44" viewBox="0 0 24 32" fill="none" aria-hidden="true">' +
@@ -95,10 +96,15 @@ export function WaypointMarker({ marker, screenX, screenY, onClick, onContextMen
   );
 }
 
-/** Read-only marker for public viewers: same camera-icon pin as WaypointMarker. */
-export function SimpleWaypointMarker({ marker, screenX, screenY, onClick }) {
+/**
+ * Read-only marker for the public Photos Link drawing view: a circle, white
+ * border, colored/iconed by capture method (see waypointMarkerIcons.js).
+ * Center-anchored (not tip-anchored like the authenticated pin).
+ */
+export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captureMethod }) {
   const x = screenX ?? marker.pixelX;
   const y = screenY ?? marker.pixelY;
+  const { width, height } = WAYPOINT_MARKER_SIZE;
   return (
     <button
       type="button"
@@ -109,16 +115,26 @@ export function SimpleWaypointMarker({ marker, screenX, screenY, onClick }) {
       }}
       aria-label={marker.waypoint_name || 'Waypoint'}
       style={{
-        ...markerStyle(x, y),
-        width: 28,
-        height: 36,
+        position: 'absolute',
+        left: x,
+        top: y,
+        transform: 'translate(-50%, -50%)',
+        border: 'none',
+        background: 'none',
+        padding: 0,
+        cursor: 'pointer',
+        lineHeight: 0,
+        zIndex: 2,
+        pointerEvents: 'auto',
+        width,
+        height,
         filter: 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))',
       }}
     >
       <span
         style={{ display: 'block', lineHeight: 0 }}
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: WAYPOINT_PIN_SVG }}
+        dangerouslySetInnerHTML={{ __html: buildCircleMarkerSvg(captureMethod, { width, height }) }}
       />
     </button>
   );

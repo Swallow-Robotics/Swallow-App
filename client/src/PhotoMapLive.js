@@ -21,8 +21,9 @@ import {
   createBasemapStyleController,
 } from './utils/basemapStyle';
 import { BasemapToggleControl } from './utils/basemapToggleControl';
+import { MapExportControl } from './utils/mapExportControl';
 
-const PhotoMapLive = () => {
+const PhotoMapLive = ({ onExport = null }) => {
   const navigate = useNavigate();
   const { activeProject, projects, roleForActiveProject } = useAuth();
   const activeProjectId = activeProject?.project_id || activeProject || null;
@@ -33,6 +34,7 @@ const PhotoMapLive = () => {
 
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
+  const onExportRef = useRef(onExport);
   const [isMapReady, setIsMapReady] = useState(false);
   const [projectMarkerOverride, setProjectMarkerOverride] = useState(null);
   const [editLocationOpen, setEditLocationOpen] = useState(false);
@@ -52,6 +54,10 @@ const PhotoMapLive = () => {
     refreshCounter,
     'drone',
   );
+
+  useEffect(() => {
+    onExportRef.current = onExport;
+  }, [onExport]);
 
   const activeProjectRow = useMemo(
     () => projects.find((p) => p.project_id === activeProjectId) || null,
@@ -195,8 +201,23 @@ const PhotoMapLive = () => {
 
     mapInstance.current.addControl(toggleControl, 'top-right');
 
+    let exportControl = null;
+    if (onExportRef.current) {
+      exportControl = new MapExportControl({
+        onExport: () => onExportRef.current?.(),
+      });
+      mapInstance.current.addControl(exportControl, 'top-right');
+    }
+
     return () => {
       setIsMapReady(false);
+      if (exportControl && mapInstance.current) {
+        try {
+          mapInstance.current.removeControl(exportControl);
+        } catch {
+          // map may already be removed
+        }
+      }
       if (supportsEvents && typeof mapInstance.current?.off === 'function') {
         mapInstance.current.off('load', handleLoad);
         mapInstance.current.off('error', handleError);
