@@ -1,6 +1,6 @@
 {
-  "buildCommand": "cd client && yarn install && yarn build",
-  "outputDirectory": "client/build",
+  "buildCommand": "yarn install && yarn build",
+  "outputDirectory": "build",
   "framework": null,
   "rewrites": [
     {
@@ -12,5 +12,5 @@
       "destination": "/api/public-link-html?token=:token"
     },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
-  }
+  ]
 }

@@ -1,3 +1,14 @@
+/**
+ * Pan/zoom drawing surface: click places a point, one-finger/mouse drag
+ * pans, wheel zooms, and two-finger touch pinches to zoom (centered on the
+ * gesture midpoint) while also panning as the midpoint moves.
+ *
+ * Touch/pointer handling lives on a dedicated full-bleed gesture plane so
+ * iOS Safari does not hit-test the large CSS-transformed image layer
+ * (which breaks pan/pinch when fingers are on the drawing). The image
+ * layer is pointer-events: none; markers in fixedOverlay keep their own
+ * pointer-events: auto for taps.
+ */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   clamp,
@@ -12,11 +23,6 @@ import {
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 
-/**
- * Pan/zoom drawing surface: click places a point, one-finger/mouse drag
- * pans, wheel zooms, and two-finger touch pinches to zoom (centered on the
- * gesture midpoint) while also panning as the midpoint moves.
- */
 const DrawingPanZoomSurface = ({
   src,
   alt,
@@ -32,6 +38,7 @@ const DrawingPanZoomSurface = ({
   style,
 }) => {
   const containerRef = useRef(null);
+  const gestureRef = useRef(null);
   // Active pointers by pointerId, so a second touch doesn't clobber the
   // first — needed to tell a one-finger drag from a two-finger pinch.
   const pointersRef = useRef(new Map());
@@ -109,14 +116,15 @@ const DrawingPanZoomSurface = ({
   }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return undefined;
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
+    const el = gestureRef.current || containerRef.current;
+    if (!el) return undefined;
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
   const beginPinch = () => {
     const points = Array.from(pointersRef.current.values());
+    if (points.length < 2) return;
     const [a, b] = points;
     pinchRef.current = {
       startDist: distance(a, b) || 1,
@@ -139,16 +147,25 @@ const DrawingPanZoomSurface = ({
     };
   };
 
+  const clearGestureState = () => {
+    pointersRef.current.clear();
+    pointerRef.current = null;
+    dragRef.current = null;
+    pinchRef.current = null;
+  };
+
   const handlePointerDown = e => {
-    if (e.button !== 0) return;
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    // Capture on the gesture plane so moves keep flowing even if the
+    // finger crosses markers / leaves the image bounds.
     e.currentTarget.setPointerCapture?.(e.pointerId);
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     if (pointersRef.current.size === 1) {
       pinchRef.current = null;
       pointerRef.current = { startX: e.clientX, startY: e.clientY, moved: false };
       dragRef.current = null;
-    } else if (pointersRef.current.size === 2) {
+    } else if (pointersRef.current.size >= 2) {
       // A second finger just touched down: this is now a pinch, not a tap
       // or a one-finger pan/click.
       pointerRef.current = null;
@@ -161,9 +178,10 @@ const DrawingPanZoomSurface = ({
     if (!pointersRef.current.has(e.pointerId)) return;
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-    if (pointersRef.current.size >= 2 && pinchRef.current) {
+    if (pointersRef.current.size >= 2) {
+      if (!pinchRef.current) beginPinch();
       const container = containerRef.current;
-      if (!container) return;
+      if (!container || !pinchRef.current) return;
       const [a, b] = Array.from(pointersRef.current.values());
       const rect = container.getBoundingClientRect();
       const toLocal = point => ({
@@ -210,8 +228,8 @@ const DrawingPanZoomSurface = ({
     ) {
       pointer.moved = true;
       dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
+        startX: pointer.startX,
+        startY: pointer.startY,
         originX: transformRef.current.x,
         originY: transformRef.current.y,
       };
@@ -220,17 +238,21 @@ const DrawingPanZoomSurface = ({
     const drag = dragRef.current;
     if (!pointer.moved || !drag) return;
 
-    setTransform(prev => ({
-      ...prev,
+    setTransform({
+      scale: transformRef.current.scale,
       x: drag.originX + (e.clientX - drag.startX),
       y: drag.originY + (e.clientY - drag.startY),
-    }));
+    });
   };
 
   const handlePointerUp = e => {
     const wasTracked = pointersRef.current.has(e.pointerId);
     pointersRef.current.delete(e.pointerId);
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    } catch {
+      // ignore — capture may already be released
+    }
     if (!wasTracked) return;
 
     if (pointersRef.current.size === 0) {
@@ -247,15 +269,11 @@ const DrawingPanZoomSurface = ({
         );
         if (pixel) onImageClick(pixel);
       }
-      pointerRef.current = null;
-      dragRef.current = null;
-      pinchRef.current = null;
+      clearGestureState();
     } else if (pointersRef.current.size === 1) {
       pinchRef.current = null;
       resumeSinglePointerDrag();
     } else {
-      // 3+ fingers were down and one lifted — re-baseline the pinch from
-      // the two remaining pointers so it continues without a jump.
       beginPinch();
     }
   };
@@ -305,9 +323,6 @@ const DrawingPanZoomSurface = ({
     [containerSize, nativeW, nativeH, transform, baseScale],
   );
 
-  // Converts a live client (viewport) coordinate to a native image pixel,
-  // used by draggable marker overlays (e.g. Plan waypoints) to track the
-  // pointer during a drag without duplicating the pan/zoom math.
   const toImage = useCallback(
     (clientX, clientY) =>
       clientToImagePixel(
@@ -327,11 +342,6 @@ const DrawingPanZoomSurface = ({
       ref={containerRef}
       className={className ? `${className} drawing-pan-zoom-surface` : 'drawing-pan-zoom-surface'}
       onDoubleClick={() => setTransform({ scale: 1, x: 0, y: 0 })}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      onPointerLeave={handlePointerUp}
       onContextMenu={handleContextMenu}
       style={{
         position: 'relative',
@@ -339,18 +349,27 @@ const DrawingPanZoomSurface = ({
         background: '#d4d4d4',
         cursor: forceCrosshair || onImageClick ? 'crosshair' : isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
         ...style,
       }}
     >
+      {/* Image layer: pointer-events none so iOS never hit-tests the
+          large transformed bitmap (that was breaking on-drawing pan/pinch).
+          Transform order avoids calc(-50% + px)*scale seams that painted
+          white lines while panning. */}
       <div
         style={{
           position: 'absolute',
           left: '50%',
           top: '50%',
-          transform: `translate(calc(-50% + ${transform.x}px), calc(-50% + ${transform.y}px)) scale(${totalScale})`,
-          transformOrigin: 'center center',
           width: nativeW,
           height: nativeH,
+          transform: `translate3d(${transform.x}px, ${transform.y}px, 0) translate(-50%, -50%) scale(${totalScale})`,
+          transformOrigin: 'center center',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+          pointerEvents: 'none',
         }}
       >
         <img
@@ -366,10 +385,31 @@ const DrawingPanZoomSurface = ({
             height: nativeH,
             pointerEvents: 'none',
             userSelect: 'none',
+            WebkitUserDrag: 'none',
           }}
         />
         {children}
       </div>
+
+      {/* Full-bleed gesture plane — receives all pan/pinch/click input. */}
+      <div
+        ref={gestureRef}
+        className="drawing-pan-zoom-surface__gesture"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          touchAction: 'none',
+          // Above the image, below marker overlay (markers use z-index 2+).
+          zIndex: 1,
+          // Keep the plane hittable but invisible.
+          background: 'transparent',
+        }}
+      />
+
       {fixedOverlay ? (
         <div
           className="drawing-pan-zoom-surface__overlay"
@@ -378,6 +418,7 @@ const DrawingPanZoomSurface = ({
             inset: 0,
             overflow: 'hidden',
             pointerEvents: 'none',
+            zIndex: 2,
           }}
         >
           {fixedOverlay({ toScreen, totalScale, toImage })}

@@ -194,11 +194,33 @@ const PublicPhotosLinkViewerPage = () => {
   useEffect(() => {
     if (!link) return undefined;
     const previousTitle = document.title;
+    const titleBase = link.project_name || 'Photos';
     const datePart =
       view === 'photo' && photoDetail?.taken_at
         ? ` - ${formatMonthDayYear(photoDetail.taken_at)}`
         : '';
-    document.title = `${link.project_name || 'Photos'}${datePart} - Swallow`;
+    const nextTitle = `${titleBase}${datePart} - Swallow`;
+    document.title = nextTitle;
+
+    // Keep share previews in sync when crawlers re-fetch or in-app browsers
+    // read the live DOM (SMS caches the first scrape of og:title separately).
+    const ensureMeta = (attr, key, value) => {
+      let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', value);
+    };
+    ensureMeta('property', 'og:title', nextTitle);
+    ensureMeta('name', 'twitter:title', nextTitle);
+    ensureMeta(
+      'property',
+      'og:description',
+      'Shared project photos on Swallow',
+    );
+
     return () => {
       document.title = previousTitle;
     };

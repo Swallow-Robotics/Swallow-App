@@ -100,6 +100,10 @@ export function WaypointMarker({ marker, screenX, screenY, onClick, onContextMen
  * Read-only marker for the public Photos Link drawing view: a circle, white
  * border, colored/iconed by capture method (see waypointMarkerIcons.js).
  * Center-anchored (not tip-anchored like the authenticated pin).
+ *
+ * pointerdown is NOT stopPropagated — the gesture plane sits underneath and
+ * owns pan/pinch; we only stop click so a marker tap does not also count as
+ * an empty-canvas click.
  */
 export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captureMethod }) {
   const x = screenX ?? marker.pixelX;
@@ -108,7 +112,6 @@ export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captur
   return (
     <button
       type="button"
-      onPointerDown={e => e.stopPropagation()}
       onClick={e => {
         e.stopPropagation();
         onClick?.(marker);
@@ -129,6 +132,7 @@ export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captur
         width,
         height,
         filter: 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))',
+        touchAction: 'none',
       }}
     >
       <span
