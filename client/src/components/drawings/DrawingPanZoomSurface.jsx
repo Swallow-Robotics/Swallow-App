@@ -367,8 +367,8 @@ const DrawingPanZoomSurface = ({
           height: nativeH,
           transform: `translate3d(${transform.x}px, ${transform.y}px, 0) translate(-50%, -50%) scale(${totalScale})`,
           transformOrigin: 'center center',
-          willChange: 'transform',
           backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
           pointerEvents: 'none',
         }}
       >

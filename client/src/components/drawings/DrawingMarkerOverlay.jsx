@@ -121,7 +121,9 @@ export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captur
         position: 'absolute',
         left: x,
         top: y,
-        transform: 'translate(-50%, -50%)',
+        // translate3d + no CSS filter: iOS Safari leaves "drag mark" trails
+        // when filter:drop-shadow is applied to markers that reposition every pan frame.
+        transform: 'translate3d(-50%, -50%, 0)',
         border: 'none',
         background: 'none',
         padding: 0,
@@ -131,7 +133,10 @@ export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captur
         pointerEvents: 'auto',
         width,
         height,
-        filter: 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))',
+        borderRadius: '50%',
+        boxShadow: '0 2px 6px rgba(31,58,95,0.35)',
+        WebkitBackfaceVisibility: 'hidden',
+        backfaceVisibility: 'hidden',
         touchAction: 'none',
       }}
     >

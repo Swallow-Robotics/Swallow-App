@@ -276,7 +276,8 @@ export function addSimpleWaypointMarkersToMap(map, refs, options) {
     el.style.cursor = 'pointer';
     el.style.userSelect = 'none';
     el.style.lineHeight = '0';
-    el.style.filter = 'drop-shadow(0 2px 6px rgba(31,58,95,0.35))';
+    el.style.borderRadius = '50%';
+    el.style.boxShadow = '0 2px 6px rgba(31,58,95,0.35)';
     el.innerHTML = buildCircleMarkerSvg(captureMethod, { width, height });
     el.title = waypoint.waypoint_name || 'Waypoint';
     el.setAttribute('role', 'button');
