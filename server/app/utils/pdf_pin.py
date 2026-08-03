@@ -22,19 +22,6 @@ def _fill_color_for(capture_method: str) -> Tuple[float, float, float]:
     return DRONE_FILL_COLOR if capture_method == "drone" else CAMERA_FILL_COLOR
 
 
-def _arc_points(
-    cx: float, cy: float, r: float, start_deg: float, end_deg: float, segments: int = 12
-) -> List[Tuple[float, float]]:
-    span = end_deg - start_deg
-    return [
-        (
-            cx + r * math.cos(math.radians(start_deg + span * (i / segments))),
-            cy + r * math.sin(math.radians(start_deg + span * (i / segments))),
-        )
-        for i in range(segments + 1)
-    ]
-
-
 def _draw_drone_icon(
     shape: "fitz.Shape", cx: float, cy: float, scale: float, fill_color: Tuple[float, float, float]
 ) -> None:
@@ -86,46 +73,89 @@ def _draw_drone_icon(
     shape.finish(color=None, fill=fill_color)
 
 
+def _ellipse_points(
+    cx: float,
+    cy: float,
+    rx: float,
+    ry: float,
+    start_deg: float,
+    end_deg: float,
+    segments: int = 16,
+) -> List[Tuple[float, float]]:
+    span = end_deg - start_deg
+    return [
+        (
+            cx + rx * math.cos(math.radians(start_deg + span * (i / segments))),
+            cy + ry * math.sin(math.radians(start_deg + span * (i / segments))),
+        )
+        for i in range(segments + 1)
+    ]
+
+
 def _draw_camera_360_icon(
     shape: "fitz.Shape", cx: float, cy: float, scale: float, fill_color: Tuple[float, float, float]
 ) -> None:
-    """Camera body + lens (white, lens cut out in the marker's fill color)
-    with a circular arrow beneath it, reading roughly as a 360 camera."""
-    body_top = cy - scale * 0.55
-    body_w, body_h = scale * 1.05, scale * 0.62
-    body_rect = fitz.Rect(cx - body_w / 2, body_top, cx + body_w / 2, body_top + body_h)
-    bump_w, bump_h = scale * 0.46, scale * 0.22
-    bump_rect = fitz.Rect(
-        cx - bump_w / 2,
-        body_top - bump_h + scale * 0.05,
-        cx + bump_w / 2,
-        body_top + scale * 0.05,
-    )
+    """Camera + elliptical orbit arrow — keep in sync with waypointMarkerIcons.js."""
+    origin_y = cy - scale * 0.06
+
+    body_w = scale * 1.15
+    body_h = scale * 0.58
+    body_top = origin_y - scale * 0.42
+    body_left = cx - body_w / 2
+
+    bump_w = scale * 0.38
+    bump_h = scale * 0.2
+    bump_left = body_left + scale * 0.12
+    bump_top = body_top - bump_h + scale * 0.06
+
+    lens_cx = cx - scale * 0.06
+    lens_cy = body_top + body_h / 2
+    lens_outer = scale * 0.2
+    lens_inner = scale * 0.1
+
+    flash_r = scale * 0.055
+    flash_cx = cx + scale * 0.38
+    flash_cy = lens_cy - scale * 0.02
+
+    body_rect = fitz.Rect(body_left, body_top, body_left + body_w, body_top + body_h)
+    bump_rect = fitz.Rect(bump_left, bump_top, bump_left + bump_w, bump_top + bump_h)
+    # PyMuPDF draw_rect doesn't support rx; rounded look is approximate via rects.
     shape.draw_rect(body_rect)
     shape.draw_rect(bump_rect)
     shape.finish(color=None, fill=MARKER_STROKE_COLOR)
 
-    lens_center = fitz.Point(cx, body_top + body_h / 2)
-    shape.draw_circle(lens_center, scale * 0.18)
+    shape.draw_circle(fitz.Point(lens_cx, lens_cy), lens_outer)
+    shape.finish(color=None, fill=MARKER_STROKE_COLOR)
+    shape.draw_circle(fitz.Point(lens_cx, lens_cy), lens_inner)
     shape.finish(color=None, fill=fill_color)
 
-    arc_cy = cy + scale * 0.32
-    arc_radius = scale * 0.32
-    points = _arc_points(cx, arc_cy, arc_radius, -30, 260)
+    shape.draw_circle(fitz.Point(flash_cx, flash_cy), flash_r)
+    shape.finish(color=None, fill=MARKER_STROKE_COLOR)
+
+    orbit_cy = origin_y + scale * 0.48
+    orbit_rx = scale * 0.48
+    orbit_ry = scale * 0.18
+    points = _ellipse_points(cx, orbit_cy, orbit_rx, orbit_ry, 200, 20, 18)
     for start, end in zip(points, points[1:]):
         shape.draw_line(fitz.Point(*start), fitz.Point(*end))
-    shape.finish(color=MARKER_STROKE_COLOR, width=scale * 0.1, closePath=False)
+    shape.finish(
+        color=MARKER_STROKE_COLOR,
+        width=max(1.1, scale * 0.11),
+        closePath=False,
+    )
 
     tip, prev = points[-1], points[-2]
     dx, dy = tip[0] - prev[0], tip[1] - prev[1]
     length = math.hypot(dx, dy) or 1.0
     ux, uy = dx / length, dy / length
     perp_x, perp_y = -uy, ux
-    arrow_size = scale * 0.22
+    arrow_size = scale * 0.2
+    base_x = tip[0] + ux * scale * 0.02
+    base_y = tip[1] + uy * scale * 0.02
     arrow_points = [
-        fitz.Point(tip[0] + ux * arrow_size * 0.6, tip[1] + uy * arrow_size * 0.6),
-        fitz.Point(tip[0] - perp_x * arrow_size * 0.55, tip[1] - perp_y * arrow_size * 0.55),
-        fitz.Point(tip[0] + perp_x * arrow_size * 0.55, tip[1] + perp_y * arrow_size * 0.55),
+        fitz.Point(base_x + ux * arrow_size * 0.75, base_y + uy * arrow_size * 0.75),
+        fitz.Point(base_x - perp_x * arrow_size * 0.55, base_y - perp_y * arrow_size * 0.55),
+        fitz.Point(base_x + perp_x * arrow_size * 0.55, base_y + perp_y * arrow_size * 0.55),
     ]
     shape.draw_polyline(arrow_points)
     shape.finish(color=None, fill=MARKER_STROKE_COLOR, closePath=True)
@@ -147,7 +177,7 @@ def draw_waypoint_marker(
     shape.draw_circle(fitz.Point(center_x, center_y), radius)
     shape.finish(color=MARKER_STROKE_COLOR, fill=fill_color, width=stroke_width, closePath=True)
 
-    icon_scale = radius * 0.72
+    icon_scale = radius * (0.72 if capture_method == "drone" else 0.78)
     if capture_method == "drone":
         _draw_drone_icon(shape, center_x, center_y, icon_scale, fill_color)
     else:
