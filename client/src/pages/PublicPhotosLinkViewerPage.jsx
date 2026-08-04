@@ -217,8 +217,9 @@ const PublicPhotosLinkViewerPage = () => {
     [preferredTakenAt]
   );
 
-  // Client cache + image warm-up so waypoint/date flips reuse signed URLs
-  // instead of waiting on a fresh API round-trip every time.
+  // Client cache of photo metadata/signed URLs so waypoint/date flips skip a
+  // fresh API round-trip. Image bytes are left to the viewer (Pannellum needs
+  // a CORS-aware fetch; a plain Image() warm-up poisons the HTTP cache).
   const photoCacheRef = useRef(new Map());
   const inflightRef = useRef(new Map());
 
@@ -236,11 +237,10 @@ const PublicPhotosLinkViewerPage = () => {
           const photo = resp?.photo || null;
           if (photo) {
             photoCacheRef.current.set(photoId, photo);
-            if (photo.r2_url) {
-              const img = new Image();
-              img.decoding = 'async';
-              img.src = photo.r2_url;
-            }
+            // Do NOT warm via new Image() without CORS — that caches a
+            // non-CORS response and breaks Pannellum's XHR load on switch
+            // (readAsBinaryString / Access-Control-Allow-Origin errors).
+            // Keep metadata cache only; the viewer fetches the image itself.
           }
           return photo;
         })
