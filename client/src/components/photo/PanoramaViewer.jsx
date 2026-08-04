@@ -8,6 +8,7 @@ import 'pannellum/build/pannellum.js';
  *
  * `className` is optional and lets a caller scope CSS overrides (e.g.
  * repositioning Pannellum's own control buttons) to just that usage.
+ * Loading UI is restyled via `.swallow-panorama` (Barn Swallow design system).
  */
 const PanoramaViewer = ({ src, className }) => {
   const containerRef = useRef(null);
@@ -27,6 +28,10 @@ const PanoramaViewer = ({ src, className }) => {
       hfov: 100,
       minHfov: 50,
       maxHfov: 120,
+      strings: {
+        loadingLabel: 'Loading',
+        loadButtonLabel: 'Load panorama',
+      },
     });
     viewerRef.current = viewer;
 
@@ -36,10 +41,12 @@ const PanoramaViewer = ({ src, className }) => {
     };
   }, [src]);
 
+  const classes = ['swallow-panorama', className].filter(Boolean).join(' ');
+
   return (
     <div
       ref={containerRef}
-      className={className}
+      className={classes}
       style={{
         position: 'absolute',
         inset: 0,

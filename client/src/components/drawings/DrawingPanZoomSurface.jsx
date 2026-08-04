@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   clamp,
+  clampPanOffset,
   clientToImagePixel,
   imagePixelToContainerPoint,
   DRAWING_CLICK_THRESHOLD_PX,
@@ -36,6 +37,9 @@ const DrawingPanZoomSurface = ({
   forceCrosshair = false,
   className,
   style,
+  minScale = DRAWING_MIN_SCALE,
+  maxScale = DRAWING_MAX_SCALE,
+  constrainPan = false,
 }) => {
   const containerRef = useRef(null);
   const gestureRef = useRef(null);
@@ -47,6 +51,8 @@ const DrawingPanZoomSurface = ({
   const pinchRef = useRef(null);
   const transformRef = useRef({ scale: 1, x: 0, y: 0 });
   const baseScaleRef = useRef(1);
+  const containerSizeRef = useRef({ w: 0, h: 0 });
+  const limitsRef = useRef({ minScale, maxScale, constrainPan });
   const [baseScale, setBaseScale] = useState(1);
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
@@ -70,6 +76,41 @@ const DrawingPanZoomSurface = ({
     baseScaleRef.current = baseScale;
   }, [baseScale]);
 
+  useEffect(() => {
+    containerSizeRef.current = containerSize;
+  }, [containerSize]);
+
+  useEffect(() => {
+    limitsRef.current = { minScale, maxScale, constrainPan };
+  }, [minScale, maxScale, constrainPan]);
+
+  const applyTransform = useCallback(
+    (next) => {
+      const limits = limitsRef.current;
+      const scale = clamp(next.scale, limits.minScale, limits.maxScale);
+      let x = next.x;
+      let y = next.y;
+      if (scale <= limits.minScale && !limits.constrainPan) {
+        return { scale: limits.minScale, x: 0, y: 0 };
+      }
+      if (limits.constrainPan) {
+        const size = containerSizeRef.current;
+        const clamped = clampPanOffset(x, y, {
+          scale,
+          baseScale: baseScaleRef.current,
+          nativeW,
+          nativeH,
+          containerW: size.w,
+          containerH: size.h,
+        });
+        x = clamped.x;
+        y = clamped.y;
+      }
+      return { scale, x, y };
+    },
+    [nativeW, nativeH]
+  );
+
   const recomputeBaseScale = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -89,31 +130,35 @@ const DrawingPanZoomSurface = ({
     return () => ro.disconnect();
   }, [recomputeBaseScale, src]);
 
-  const handleWheel = useCallback(e => {
-    e.preventDefault();
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const cursorX = e.clientX - rect.left - rect.width / 2;
-    const cursorY = e.clientY - rect.top - rect.height / 2;
+  const handleWheel = useCallback(
+    (e) => {
+      e.preventDefault();
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left - rect.width / 2;
+      const cursorY = e.clientY - rect.top - rect.height / 2;
+      const limits = limitsRef.current;
 
-    setTransform(prev => {
-      const nextScale = clamp(
-        prev.scale * (1 - e.deltaY * DRAWING_ZOOM_STEP),
-        DRAWING_MIN_SCALE,
-        DRAWING_MAX_SCALE,
-      );
-      const ratio = nextScale / prev.scale;
-      if (nextScale <= DRAWING_MIN_SCALE) {
-        return { scale: DRAWING_MIN_SCALE, x: 0, y: 0 };
-      }
-      return {
-        scale: nextScale,
-        x: cursorX - (cursorX - prev.x) * ratio,
-        y: cursorY - (cursorY - prev.y) * ratio,
-      };
-    });
-  }, []);
+      setTransform((prev) => {
+        const nextScale = clamp(
+          prev.scale * (1 - e.deltaY * DRAWING_ZOOM_STEP),
+          limits.minScale,
+          limits.maxScale
+        );
+        const ratio = nextScale / prev.scale;
+        if (nextScale <= limits.minScale && !limits.constrainPan) {
+          return { scale: limits.minScale, x: 0, y: 0 };
+        }
+        return applyTransform({
+          scale: nextScale,
+          x: cursorX - (cursorX - prev.x) * ratio,
+          y: cursorY - (cursorY - prev.y) * ratio,
+        });
+      });
+    },
+    [applyTransform]
+  );
 
   useEffect(() => {
     const el = gestureRef.current || containerRef.current;
@@ -138,7 +183,11 @@ const DrawingPanZoomSurface = ({
     if (!remaining) return;
     // Continue panning from here without a jump — this is a continuation
     // of an existing gesture (finger lifted mid-pinch), not a fresh click.
-    pointerRef.current = { startX: remaining.x, startY: remaining.y, moved: true };
+    pointerRef.current = {
+      startX: remaining.x,
+      startY: remaining.y,
+      moved: true,
+    };
     dragRef.current = {
       startX: remaining.x,
       startY: remaining.y,
@@ -154,7 +203,7 @@ const DrawingPanZoomSurface = ({
     pinchRef.current = null;
   };
 
-  const handlePointerDown = e => {
+  const handlePointerDown = (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     // Capture on the gesture plane so moves keep flowing even if the
     // finger crosses markers / leaves the image bounds.
@@ -163,7 +212,11 @@ const DrawingPanZoomSurface = ({
 
     if (pointersRef.current.size === 1) {
       pinchRef.current = null;
-      pointerRef.current = { startX: e.clientX, startY: e.clientY, moved: false };
+      pointerRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+      };
       dragRef.current = null;
     } else if (pointersRef.current.size >= 2) {
       // A second finger just touched down: this is now a pinch, not a tap
@@ -174,7 +227,7 @@ const DrawingPanZoomSurface = ({
     }
   };
 
-  const handlePointerMove = e => {
+  const handlePointerMove = (e) => {
     if (!pointersRef.current.has(e.pointerId)) return;
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -184,33 +237,36 @@ const DrawingPanZoomSurface = ({
       if (!container || !pinchRef.current) return;
       const [a, b] = Array.from(pointersRef.current.values());
       const rect = container.getBoundingClientRect();
-      const toLocal = point => ({
+      const toLocal = (point) => ({
         x: point.x - rect.left - rect.width / 2,
         y: point.y - rect.top - rect.height / 2,
       });
 
       const { startDist, startMid, startTransform } = pinchRef.current;
+      const limits = limitsRef.current;
       const nextScale = clamp(
         startTransform.scale * (distance(a, b) / startDist),
-        DRAWING_MIN_SCALE,
-        DRAWING_MAX_SCALE,
+        limits.minScale,
+        limits.maxScale
       );
       const zoomRatio = nextScale / startTransform.scale;
 
       const focalStart = toLocal(startMid);
       const focalNow = toLocal(midpoint(a, b));
 
-      setTransform({
-        scale: nextScale,
-        x:
-          focalStart.x -
-          (focalStart.x - startTransform.x) * zoomRatio +
-          (focalNow.x - focalStart.x),
-        y:
-          focalStart.y -
-          (focalStart.y - startTransform.y) * zoomRatio +
-          (focalNow.y - focalStart.y),
-      });
+      setTransform(
+        applyTransform({
+          scale: nextScale,
+          x:
+            focalStart.x -
+            (focalStart.x - startTransform.x) * zoomRatio +
+            (focalNow.x - focalStart.x),
+          y:
+            focalStart.y -
+            (focalStart.y - startTransform.y) * zoomRatio +
+            (focalNow.y - focalStart.y),
+        })
+      );
       return;
     }
 
@@ -238,14 +294,16 @@ const DrawingPanZoomSurface = ({
     const drag = dragRef.current;
     if (!pointer.moved || !drag) return;
 
-    setTransform({
-      scale: transformRef.current.scale,
-      x: drag.originX + (e.clientX - drag.startX),
-      y: drag.originY + (e.clientY - drag.startY),
-    });
+    setTransform(
+      applyTransform({
+        scale: transformRef.current.scale,
+        x: drag.originX + (e.clientX - drag.startX),
+        y: drag.originY + (e.clientY - drag.startY),
+      })
+    );
   };
 
-  const handlePointerUp = e => {
+  const handlePointerUp = (e) => {
     const wasTracked = pointersRef.current.has(e.pointerId);
     pointersRef.current.delete(e.pointerId);
     try {
@@ -265,7 +323,7 @@ const DrawingPanZoomSurface = ({
           nativeW,
           nativeH,
           transformRef.current,
-          baseScaleRef.current,
+          baseScaleRef.current
         );
         if (pixel) onImageClick(pixel);
       }
@@ -279,7 +337,7 @@ const DrawingPanZoomSurface = ({
   };
 
   const handleContextMenu = useCallback(
-    e => {
+    (e) => {
       if (!onContextMenu) return;
       e.preventDefault();
       const pixel = clientToImagePixel(
@@ -289,14 +347,15 @@ const DrawingPanZoomSurface = ({
         nativeW,
         nativeH,
         transformRef.current,
-        baseScaleRef.current,
+        baseScaleRef.current
       );
-      if (pixel) onContextMenu({ pixel, screenX: e.clientX, screenY: e.clientY });
+      if (pixel)
+        onContextMenu({ pixel, screenX: e.clientX, screenY: e.clientY });
     },
-    [onContextMenu, nativeW, nativeH],
+    [onContextMenu, nativeW, nativeH]
   );
 
-  const handleImageLoad = e => {
+  const handleImageLoad = (e) => {
     const img = e.currentTarget;
     if (img.naturalWidth > 0 && img.naturalHeight > 0) {
       const dims = { w: img.naturalWidth, h: img.naturalHeight };
@@ -318,9 +377,9 @@ const DrawingPanZoomSurface = ({
         nativeW,
         nativeH,
         transform,
-        baseScale,
+        baseScale
       ),
-    [containerSize, nativeW, nativeH, transform, baseScale],
+    [containerSize, nativeW, nativeH, transform, baseScale]
   );
 
   const toImage = useCallback(
@@ -332,22 +391,31 @@ const DrawingPanZoomSurface = ({
         nativeW,
         nativeH,
         transformRef.current,
-        baseScaleRef.current,
+        baseScaleRef.current
       ),
-    [nativeW, nativeH],
+    [nativeW, nativeH]
   );
 
   return (
     <div
       ref={containerRef}
-      className={className ? `${className} drawing-pan-zoom-surface` : 'drawing-pan-zoom-surface'}
+      className={
+        className
+          ? `${className} drawing-pan-zoom-surface`
+          : 'drawing-pan-zoom-surface'
+      }
       onDoubleClick={() => setTransform({ scale: 1, x: 0, y: 0 })}
       onContextMenu={handleContextMenu}
       style={{
         position: 'relative',
         overflow: 'hidden',
         background: '#d4d4d4',
-        cursor: forceCrosshair || onImageClick ? 'crosshair' : isDragging ? 'grabbing' : 'grab',
+        cursor:
+          forceCrosshair || onImageClick
+            ? 'crosshair'
+            : isDragging
+              ? 'grabbing'
+              : 'grab',
         touchAction: 'none',
         WebkitUserSelect: 'none',
         userSelect: 'none',

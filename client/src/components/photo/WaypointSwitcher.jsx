@@ -25,6 +25,7 @@ const WaypointSwitcher = ({
   onSelect,
 }) => {
   const [open, setOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState(null);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -36,6 +37,10 @@ const WaypointSwitcher = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!open) setHoveredId(null);
+  }, [open]);
 
   const index = orderedWaypoints.findIndex(
     (wp) => wp.waypoint_id === currentWaypointId
@@ -164,11 +169,18 @@ const WaypointSwitcher = ({
         >
           {orderedWaypoints.map((waypoint) => {
             const isCurrent = waypoint.waypoint_id === currentWaypointId;
+            const isHovered = !isCurrent && waypoint.waypoint_id === hoveredId;
             return (
               <button
                 key={waypoint.waypoint_id}
                 type="button"
                 onClick={() => goTo(waypoint)}
+                onMouseEnter={() => setHoveredId(waypoint.waypoint_id)}
+                onMouseLeave={() =>
+                  setHoveredId((id) =>
+                    id === waypoint.waypoint_id ? null : id
+                  )
+                }
                 style={{
                   display: 'block',
                   width: '100%',
@@ -176,7 +188,9 @@ const WaypointSwitcher = ({
                   border: 'none',
                   background: isCurrent
                     ? 'var(--color-surface-active)'
-                    : 'transparent',
+                    : isHovered
+                      ? 'var(--color-surface-hover)'
+                      : 'transparent',
                   color: isCurrent
                     ? 'var(--color-primary-dark)'
                     : 'var(--color-text-primary)',

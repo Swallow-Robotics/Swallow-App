@@ -13,8 +13,29 @@ import {
   waypointsToPixelPositions,
 } from '../../utils/drawingAffineTransform';
 import { WAYPOINT_MARKER_SIZE_MINI } from '../../utils/waypointMarkerIcons';
+import {
+  MINI_MAP_MAX_SCALE,
+  MINI_MAP_MIN_SCALE,
+} from '../../utils/drawingPanZoom';
 
 const MINI_SIZE = { width: 168, height: 128 };
+const COLLAPSE_BAR_HEIGHT = 22;
+
+const collapseBarStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: MINI_SIZE.width,
+  height: COLLAPSE_BAR_HEIGHT,
+  border: 'none',
+  borderTop: '1px solid var(--color-border)',
+  background: 'var(--color-surface-primary)',
+  color: 'var(--color-text-secondary)',
+  cursor: 'pointer',
+  fontSize: 14,
+  lineHeight: 1,
+  padding: 0,
+};
 
 /**
  * Collapsible bottom-left mini map for the Public Link photo view.
@@ -54,91 +75,91 @@ const PublicLinkMiniMap = ({
     [link]
   );
 
+  const shellStyle = {
+    width: MINI_SIZE.width,
+    borderRadius: 'var(--radius-lg)',
+    overflow: 'hidden',
+    border: '1px solid var(--color-border)',
+    boxShadow: 'var(--shadow-md)',
+    background: 'var(--color-surface-primary)',
+    position: 'relative',
+  };
+
   if (collapsed) {
     return (
-      <button
-        type="button"
-        className="btn-format-1 drawings-page__tool-btn"
-        onClick={() => setCollapsed(false)}
-        aria-label="Show mini map"
-        style={{ boxShadow: 'var(--shadow-md)' }}
-      >
-        Map
-      </button>
+      <div style={shellStyle}>
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          aria-label="Expand mini map"
+          style={{ ...collapseBarStyle, borderTop: 'none' }}
+        >
+          ˄
+        </button>
+      </div>
     );
   }
 
   return (
-    <div
-      style={{
-        width: MINI_SIZE.width,
-        height: MINI_SIZE.height,
-        borderRadius: 'var(--radius-lg)',
-        overflow: 'hidden',
-        border: '1px solid var(--color-border)',
-        boxShadow: 'var(--shadow-md)',
-        background: 'var(--color-surface-primary)',
-        position: 'relative',
-      }}
-    >
-      <button
-        type="button"
-        aria-label="Hide mini map"
-        onClick={() => setCollapsed(true)}
-        className="btn-format-1 drawings-page__tool-btn"
+    <div style={shellStyle}>
+      <div
         style={{
-          position: 'absolute',
-          top: 4,
-          right: 4,
-          zIndex: 5,
-          padding: '2px 8px',
-          fontSize: 'var(--font-size-sm)',
-          minHeight: 0,
-          height: 26,
+          position: 'relative',
+          width: MINI_SIZE.width,
+          height: MINI_SIZE.height,
         }}
       >
-        ✕
+        {useDrawing ? (
+          <DrawingPanZoomSurface
+            src={link.drawing.r2_url}
+            alt="Mini drawing"
+            width={Number(link.drawing.width) || 1}
+            height={Number(link.drawing.height) || 1}
+            minScale={MINI_MAP_MIN_SCALE}
+            maxScale={MINI_MAP_MAX_SCALE}
+            constrainPan
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'var(--color-charcoal-slate)',
+            }}
+            fixedOverlay={({ toScreen }) => (
+              <>
+                {drawingMarkers.map((marker) => {
+                  const pos = toScreen(marker.pixelX, marker.pixelY);
+                  return (
+                    <SimpleWaypointMarker
+                      key={marker.waypoint_id}
+                      marker={marker}
+                      screenX={pos.x}
+                      screenY={pos.y}
+                      onClick={onWaypointSelect}
+                      captureMethod={captureMethod}
+                      size={WAYPOINT_MARKER_SIZE_MINI.width}
+                      isActive={marker.waypoint_id === activeWaypointId}
+                    />
+                  );
+                })}
+              </>
+            )}
+          />
+        ) : (
+          <MiniMapLibre
+            waypoints={mapWaypoints}
+            captureMethod={captureMethod}
+            activeWaypointId={activeWaypointId}
+            onWaypointClick={onWaypointSelect}
+          />
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => setCollapsed(true)}
+        aria-label="Collapse mini map"
+        style={collapseBarStyle}
+      >
+        ˅
       </button>
-
-      {useDrawing ? (
-        <DrawingPanZoomSurface
-          src={link.drawing.r2_url}
-          alt="Mini drawing"
-          width={Number(link.drawing.width) || 1}
-          height={Number(link.drawing.height) || 1}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'var(--color-charcoal-slate)',
-          }}
-          fixedOverlay={({ toScreen }) => (
-            <>
-              {drawingMarkers.map((marker) => {
-                const pos = toScreen(marker.pixelX, marker.pixelY);
-                return (
-                  <SimpleWaypointMarker
-                    key={marker.waypoint_id}
-                    marker={marker}
-                    screenX={pos.x}
-                    screenY={pos.y}
-                    onClick={onWaypointSelect}
-                    captureMethod={captureMethod}
-                    size={WAYPOINT_MARKER_SIZE_MINI.width}
-                    isActive={marker.waypoint_id === activeWaypointId}
-                  />
-                );
-              })}
-            </>
-          )}
-        />
-      ) : (
-        <MiniMapLibre
-          waypoints={mapWaypoints}
-          captureMethod={captureMethod}
-          activeWaypointId={activeWaypointId}
-          onWaypointClick={onWaypointSelect}
-        />
-      )}
     </div>
   );
 };
@@ -203,12 +224,31 @@ const MiniMapLibre = ({
       }
     );
     if (!hasAutoFitRef.current && bounds && !bounds.isEmpty()) {
-      mapInstance.current.fitBounds(bounds, {
+      const map = mapInstance.current;
+      map.fitBounds(bounds, {
         padding: 28,
         maxZoom: 17,
         animate: false,
       });
       hasAutoFitRef.current = true;
+
+      // Limit pan/zoom so the fitted area cannot be scrolled away.
+      const applyLimits = () => {
+        const z = map.getZoom();
+        map.setMinZoom(Math.max(0, z - 0.15));
+        map.setMaxZoom(z + 2.5);
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        const latSpan = Math.max(Math.abs(ne.lat - sw.lat), 0.001);
+        const lngSpan = Math.max(Math.abs(ne.lng - sw.lng), 0.001);
+        const latPad = latSpan * 0.35;
+        const lngPad = lngSpan * 0.35;
+        map.setMaxBounds([
+          [sw.lng - lngPad, sw.lat - latPad],
+          [ne.lng + lngPad, ne.lat + latPad],
+        ]);
+      };
+      map.once('idle', applyLimits);
     }
     return () => clearWaypointMarkers(markerRefs);
   }, [

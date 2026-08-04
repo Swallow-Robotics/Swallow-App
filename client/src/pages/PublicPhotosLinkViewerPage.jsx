@@ -217,15 +217,65 @@ const PublicPhotosLinkViewerPage = () => {
     [preferredTakenAt]
   );
 
+  // Client cache + image warm-up so waypoint/date flips reuse signed URLs
+  // instead of waiting on a fresh API round-trip every time.
+  const photoCacheRef = useRef(new Map());
+  const inflightRef = useRef(new Map());
+
+  const loadPhoto = useCallback(
+    (photoId) => {
+      if (!photoId || !token) return Promise.resolve(null);
+      const cached = photoCacheRef.current.get(photoId);
+      if (cached) return Promise.resolve(cached);
+      const inflight = inflightRef.current.get(photoId);
+      if (inflight) return inflight;
+
+      const req = publicPhotosLinkService
+        .getPhoto(token, photoId)
+        .then((resp) => {
+          const photo = resp?.photo || null;
+          if (photo) {
+            photoCacheRef.current.set(photoId, photo);
+            if (photo.r2_url) {
+              const img = new Image();
+              img.decoding = 'async';
+              img.src = photo.r2_url;
+            }
+          }
+          return photo;
+        })
+        .finally(() => {
+          inflightRef.current.delete(photoId);
+        });
+      inflightRef.current.set(photoId, req);
+      return req;
+    },
+    [token]
+  );
+
   useEffect(() => {
     if (!activePhotoId) return undefined;
     let cancelled = false;
-    setIsPhotoLoading(true);
     setPhotoError('');
-    publicPhotosLinkService
-      .getPhoto(token, activePhotoId)
-      .then((resp) => {
-        if (!cancelled) setPhotoDetail(resp?.photo || null);
+
+    const cached = photoCacheRef.current.get(activePhotoId);
+    if (cached) {
+      setPhotoDetail(cached);
+      setIsPhotoLoading(false);
+    } else {
+      setIsPhotoLoading(true);
+    }
+
+    loadPhoto(activePhotoId)
+      .then((photo) => {
+        if (cancelled) return;
+        if (photo) {
+          setPhotoDetail(photo);
+          setPhotoError('');
+        } else {
+          setPhotoDetail(null);
+          setPhotoError('This photo is no longer available.');
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -239,27 +289,70 @@ const PublicPhotosLinkViewerPage = () => {
       .finally(() => {
         if (!cancelled) setIsPhotoLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [token, activePhotoId]);
-
-  const sameWaypointPhotos = useMemo(() => {
-    if (!link || !photoDetail?.waypoint_id) {
-      return photoDetail ? [photoDetail] : [];
-    }
-    const waypoint = (link.waypoints || []).find(
-      (wp) => wp.waypoint_id === photoDetail.waypoint_id
-    );
-    return [...(waypoint?.photos || [])].sort(sortByTakenAtAsc);
-  }, [link, photoDetail]);
+  }, [activePhotoId, loadPhoto]);
 
   const currentWaypointId =
-    photoDetail?.waypoint_id ||
     (link?.waypoints || []).find((wp) =>
       (wp.photos || []).some((p) => p.photo_id === activePhotoId)
     )?.waypoint_id ||
+    photoDetail?.waypoint_id ||
     null;
+
+  const sameWaypointPhotos = useMemo(() => {
+    if (!link || !currentWaypointId) {
+      return photoDetail ? [photoDetail] : [];
+    }
+    const waypoint = (link.waypoints || []).find(
+      (wp) => wp.waypoint_id === currentWaypointId
+    );
+    return [...(waypoint?.photos || [])].sort(sortByTakenAtAsc);
+  }, [link, currentWaypointId, photoDetail]);
+
+  // Prefetch neighboring waypoints (same preferred date) and adjacent dates
+  // in the current stack so « ‹ › » feel instant when possible.
+  useEffect(() => {
+    if (view !== 'photo' || !activePhotoId) return undefined;
+
+    const ids = new Set();
+    const idx = orderedWaypoints.findIndex(
+      (wp) => wp.waypoint_id === currentWaypointId
+    );
+    if (idx >= 0) {
+      [idx - 1, idx + 1, 0, orderedWaypoints.length - 1].forEach((i) => {
+        const wp = orderedWaypoints[i];
+        if (!wp || i === idx) return;
+        const photo = pickNearestPhoto(wp.photos, preferredTakenAt);
+        if (photo?.photo_id) ids.add(photo.photo_id);
+      });
+    }
+
+    const dateIdx = sameWaypointPhotos.findIndex(
+      (p) => p.photo_id === activePhotoId
+    );
+    if (dateIdx >= 0) {
+      [dateIdx - 1, dateIdx + 1].forEach((i) => {
+        const photo = sameWaypointPhotos[i];
+        if (photo?.photo_id) ids.add(photo.photo_id);
+      });
+    }
+
+    ids.forEach((id) => {
+      if (!photoCacheRef.current.has(id)) loadPhoto(id).catch(() => {});
+    });
+    return undefined;
+  }, [
+    view,
+    activePhotoId,
+    currentWaypointId,
+    orderedWaypoints,
+    sameWaypointPhotos,
+    preferredTakenAt,
+    loadPhoto,
+  ]);
 
   const isPanorama =
     photoDetail?.capture_method === '360_camera' ||
@@ -361,8 +454,19 @@ const PublicPhotosLinkViewerPage = () => {
     >
       <PublicHeaderBanner
         projectName={link.project_name}
-        waypointName={view === 'photo' ? photoDetail?.waypoint_name : null}
-        takenAt={view === 'photo' ? photoDetail?.taken_at : null}
+        waypointName={
+          view === 'photo'
+            ? orderedWaypoints.find(
+                (wp) => wp.waypoint_id === currentWaypointId
+              )?.waypoint_name || photoDetail?.waypoint_name
+            : null
+        }
+        takenAt={
+          view === 'photo'
+            ? sameWaypointPhotos.find((p) => p.photo_id === activePhotoId)
+                ?.taken_at || photoDetail?.taken_at
+            : null
+        }
       />
 
       <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
