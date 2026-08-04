@@ -253,42 +253,36 @@
 }
 
 /* Barn Swallow loading overlay for all Pannellum viewers (public link +
-   authenticated view). Replaces the default dark glass box + bouncing dots
-   with a quiet centered card and mid-sky progress bar. */
+   authenticated view). Minimal progress line only — no card, shadow, label,
+   or byte count. */
 .swallow-panorama .pnlm-load-box {
-  width: 200px;
+  width: 120px;
   height: auto;
   min-height: 0;
-  margin: -48px 0 0 -100px;
-  padding: var(--space-lg) var(--space-md);
-  background: var(--color-warm-feather-white);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  color: var(--color-deep-plumage-blue);
-  font-family: var(--font-family-sans, Inter, sans-serif);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  margin: -2px 0 0 -60px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 0;
+  color: transparent;
 }
 
-.swallow-panorama .pnlm-load-box p {
-  margin: 0 0 var(--space-md) 0;
-  color: var(--color-deep-plumage-blue);
-}
-
+.swallow-panorama .pnlm-load-box > p,
 .swallow-panorama .pnlm-lbox,
-.swallow-panorama .pnlm-loading {
+.swallow-panorama .pnlm-loading,
+.swallow-panorama .pnlm-lmsg {
   display: none !important;
 }
 
 .swallow-panorama .pnlm-lbar {
-  width: 100%;
-  max-width: 160px;
-  height: 4px;
-  margin: 0 auto;
+  width: 120px;
+  height: 3px;
+  margin: 0;
   border: none;
   border-radius: 999px;
-  background: var(--color-pale-feather-blue);
+  background: rgba(183, 205, 230, 0.45); /* pale-feather-blue soft track */
   overflow: hidden;
 }
 
@@ -297,31 +291,17 @@
   border-radius: 999px;
 }
 
-.swallow-panorama .pnlm-lmsg {
-  margin: var(--space-sm) 0 0 0;
-  font-size: 11px;
-  font-weight: var(--font-weight-regular);
-  color: var(--color-text-secondary);
-}
-
 .swallow-panorama .pnlm-load-button {
-  width: 200px;
+  width: 120px;
   height: auto;
-  min-height: 72px;
-  margin: -36px 0 0 -100px;
-  padding: var(--space-md);
-  background: var(--color-warm-feather-white);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  color: var(--color-deep-plumage-blue);
-  font-family: var(--font-family-sans, Inter, sans-serif);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-}
-
-.swallow-panorama .pnlm-load-button:hover {
-  background: var(--color-surface-hover);
+  min-height: 0;
+  margin: -2px 0 0 -60px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: transparent;
+  font-size: 0;
 }
 
 /* ===========================

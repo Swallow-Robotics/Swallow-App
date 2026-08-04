@@ -29,8 +29,8 @@ const PanoramaViewer = ({ src, className }) => {
       minHfov: 50,
       maxHfov: 120,
       strings: {
-        loadingLabel: 'Loading',
-        loadButtonLabel: 'Load panorama',
+        loadingLabel: '',
+        loadButtonLabel: '',
       },
     });
     viewerRef.current = viewer;
