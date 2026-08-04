@@ -24,6 +24,11 @@ export class BasemapToggleControl {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = label;
+      btn.style.flex = '1 1 0';
+      btn.style.minWidth = '0';
+      btn.style.display = 'flex';
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'center';
       btn.style.padding = '6px 14px';
       btn.style.fontSize = 'var(--font-size-base)';
       btn.style.fontWeight = 'var(--font-weight-medium)';
@@ -34,6 +39,7 @@ export class BasemapToggleControl {
       btn.style.transition = 'background 150ms ease, color 150ms ease';
       btn.style.lineHeight = 'var(--line-height-snug)';
       btn.style.whiteSpace = 'nowrap';
+      btn.style.textAlign = 'center';
       btn.onclick = () => this._onSelect(value);
       btn.onmouseenter = () => {
         if (this._getActive() !== value) {

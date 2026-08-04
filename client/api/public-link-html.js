@@ -6,12 +6,20 @@
  *
  * Requires REACT_APP_API_BASE_URL (same as the CRA build) so this function can
  * fetch /api/v1/public/photos-link/:token from the Render backend.
+ *
+ * Preview layout stays the compact summary style (icon on the right). Do not
+ * inject og:image / twitter:image — those push iMessage into a large image card.
+ * Color alignment uses a share-tinted apple-touch-icon + theme-color only.
  */
 const fs = require('fs');
 const path = require('path');
 
 const DEFAULT_TITLE = 'Photos - Swallow';
 const DEFAULT_DESCRIPTION = 'Shared project photos on Swallow';
+// Sampled from Apple's specialty tint on the compact preview for the
+// deep-plumage logo — share icon bg / theme-color match this so the
+// bubble and icon square read closer to the same field.
+const SHARE_THEME = '#3c5c88';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -42,19 +50,14 @@ function injectMeta(html, { title, description, url, origin }) {
   const safeTitle = escapeHtml(title);
   const safeDesc = escapeHtml(description);
   const safeUrl = escapeHtml(url);
-  // Share icon bg matches Apple's iMessage specialty tint (#3c5c88) so the
-  // preview bubble and logo square read as one continuous field.
   const shareIcon = escapeHtml(`${origin}/logo192-share.png`);
-  const shareIconLarge = escapeHtml(`${origin}/logo512-share.png`);
-  const theme = '#3c5c88';
 
   let next = html.replace(
     /<title>[^<]*<\/title>/i,
     `<title>${safeTitle}</title>`
   );
 
-  // Prefer the share-tinted icon for Apple touch / link previews without
-  // changing the deep-plumage app icons used in-product.
+  // Compact icon only — same 192 layout as before, tinted for bubble match.
   if (/rel="apple-touch-icon"/i.test(next)) {
     next = next.replace(
       /<link rel="apple-touch-icon"[^>]*>/i,
@@ -70,44 +73,28 @@ function injectMeta(html, { title, description, url, origin }) {
   if (/name="theme-color"/i.test(next)) {
     next = next.replace(
       /<meta name="theme-color"[^>]*>/i,
-      `<meta name="theme-color" content="${theme}" />`
+      `<meta name="theme-color" content="${SHARE_THEME}" />`
     );
   }
 
+  // Strip any large-preview image tags left from a previous shell inject so
+  // iMessage stays on the compact summary layout.
+  next = next.replace(/<meta property="og:image"[^>]*>\s*/gi, '');
+  next = next.replace(/<meta name="twitter:image"[^>]*>\s*/gi, '');
+
   const ogBlock = [
     `<meta name="description" content="${safeDesc}" />`,
-    `<meta name="theme-color" content="${theme}" />`,
+    `<meta name="theme-color" content="${SHARE_THEME}" />`,
     `<meta property="og:type" content="website" />`,
     `<meta property="og:title" content="${safeTitle}" />`,
     `<meta property="og:description" content="${safeDesc}" />`,
     `<meta property="og:url" content="${safeUrl}" />`,
-    `<meta property="og:image" content="${shareIconLarge}" />`,
     `<meta name="twitter:card" content="summary" />`,
     `<meta name="twitter:title" content="${safeTitle}" />`,
     `<meta name="twitter:description" content="${safeDesc}" />`,
-    `<meta name="twitter:image" content="${shareIconLarge}" />`,
   ].join('\n    ');
 
   if (/property="og:title"/i.test(next)) {
-    // Shell already has OG tags (e.g. from a prior inject); still stamp the
-    // share-tinted image / theme so previews stay seamless.
-    if (/property="og:image"/i.test(next)) {
-      next = next.replace(
-        /<meta property="og:image"[^>]*>/i,
-        `<meta property="og:image" content="${shareIconLarge}" />`
-      );
-    } else {
-      next = next.replace(
-        /<\/head>/i,
-        `    <meta property="og:image" content="${shareIconLarge}" />\n  </head>`
-      );
-    }
-    if (/name="twitter:image"/i.test(next)) {
-      next = next.replace(
-        /<meta name="twitter:image"[^>]*>/i,
-        `<meta name="twitter:image" content="${shareIconLarge}" />`
-      );
-    }
     return next;
   }
   return next.replace(/<\/head>/i, `    ${ogBlock}\n  </head>`);
