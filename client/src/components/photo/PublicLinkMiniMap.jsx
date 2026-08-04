@@ -21,6 +21,35 @@ import {
 const MINI_SIZE = { width: 168, height: 128 };
 const COLLAPSE_BAR_HEIGHT = 22;
 
+const ChevronIcon = ({ direction }) => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 14 14"
+    fill="none"
+    aria-hidden="true"
+    focusable="false"
+  >
+    {direction === 'up' ? (
+      <path
+        d="M3 9L7 5L11 9"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ) : (
+      <path
+        d="M3 5L7 9L11 5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    )}
+  </svg>
+);
+
 const collapseBarStyle = {
   display: 'flex',
   alignItems: 'center',
@@ -30,9 +59,8 @@ const collapseBarStyle = {
   border: 'none',
   borderTop: '1px solid var(--color-border)',
   background: 'var(--color-surface-primary)',
-  color: 'var(--color-text-secondary)',
+  color: 'var(--color-mid-sky-blue)',
   cursor: 'pointer',
-  fontSize: 14,
   lineHeight: 1,
   padding: 0,
 };
@@ -94,7 +122,7 @@ const PublicLinkMiniMap = ({
           aria-label="Expand mini map"
           style={{ ...collapseBarStyle, borderTop: 'none' }}
         >
-          ˄
+          <ChevronIcon direction="up" />
         </button>
       </div>
     );
@@ -158,7 +186,7 @@ const PublicLinkMiniMap = ({
         aria-label="Collapse mini map"
         style={collapseBarStyle}
       >
-        ˅
+        <ChevronIcon direction="down" />
       </button>
     </div>
   );

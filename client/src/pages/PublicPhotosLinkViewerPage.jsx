@@ -583,64 +583,59 @@ const PublicPhotosLinkViewerPage = () => {
             ) : null}
           </>
         ) : view === 'map' ? (
-          <>
-            <PublicPhotosLinkMap
-              waypoints={mapWaypoints}
-              onWaypointClick={setSelectedWaypoint}
-              captureMethod={captureMethod}
-            />
-            {canToggleMapDrawing ? (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'var(--space-md)',
-                  left: 'var(--space-md)',
-                  zIndex: 10,
-                }}
+          <PublicPhotosLinkMap
+            waypoints={mapWaypoints}
+            onWaypointClick={setSelectedWaypoint}
+            captureMethod={captureMethod}
+          />
+        ) : link.drawing?.r2_url ? (
+          <PublicDrawingCanvas
+            src={link.drawing.r2_url}
+            alt="Drawing"
+            width={link.drawing.width}
+            height={link.drawing.height}
+            waypointMarkers={drawingMarkers}
+            onWaypointClick={setSelectedWaypoint}
+            captureMethod={captureMethod}
+          />
+        ) : null}
+
+        {canToggleMapDrawing && (view === 'map' || view === 'drawing') ? (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'var(--space-md)',
+              left: 'var(--space-md)',
+              zIndex: 10,
+            }}
+          >
+            <div
+              className="view-mode-toggle"
+              role="group"
+              aria-label="Drawing or map view"
+            >
+              <button
+                type="button"
+                className={`view-mode-toggle__btn${
+                  view === 'drawing' ? ' view-mode-toggle__btn--active' : ''
+                }`}
+                onClick={() => setView('drawing')}
               >
-                <button
-                  type="button"
-                  className="btn-format-1 drawings-page__tool-btn"
-                  onClick={() => setView('drawing')}
-                >
-                  Drawing
-                </button>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <>
-            {link.drawing?.r2_url ? (
-              <PublicDrawingCanvas
-                src={link.drawing.r2_url}
-                alt="Drawing"
-                width={link.drawing.width}
-                height={link.drawing.height}
-                waypointMarkers={drawingMarkers}
-                onWaypointClick={setSelectedWaypoint}
-                captureMethod={captureMethod}
-              />
-            ) : null}
-            {canToggleMapDrawing ? (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'var(--space-md)',
-                  left: 'var(--space-md)',
-                  zIndex: 10,
-                }}
+                Drawing
+              </button>
+              <div className="view-mode-toggle__divider" aria-hidden="true" />
+              <button
+                type="button"
+                className={`view-mode-toggle__btn${
+                  view === 'map' ? ' view-mode-toggle__btn--active' : ''
+                }`}
+                onClick={() => setView('map')}
               >
-                <button
-                  type="button"
-                  className="btn-format-1 drawings-page__tool-btn"
-                  onClick={() => setView('map')}
-                >
-                  Map
-                </button>
-              </div>
-            ) : null}
-          </>
-        )}
+                Map
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <WaypointPhotosModal

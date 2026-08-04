@@ -38,28 +38,76 @@ async function fetchProjectTitle(token, apiBase) {
   }
 }
 
-function injectMeta(html, { title, description, url }) {
+function injectMeta(html, { title, description, url, origin }) {
   const safeTitle = escapeHtml(title);
   const safeDesc = escapeHtml(description);
   const safeUrl = escapeHtml(url);
+  // Share icon bg matches Apple's iMessage specialty tint (#3c5c88) so the
+  // preview bubble and logo square read as one continuous field.
+  const shareIcon = escapeHtml(`${origin}/logo192-share.png`);
+  const shareIconLarge = escapeHtml(`${origin}/logo512-share.png`);
+  const theme = '#3c5c88';
 
   let next = html.replace(
     /<title>[^<]*<\/title>/i,
-    `<title>${safeTitle}</title>`,
+    `<title>${safeTitle}</title>`
   );
+
+  // Prefer the share-tinted icon for Apple touch / link previews without
+  // changing the deep-plumage app icons used in-product.
+  if (/rel="apple-touch-icon"/i.test(next)) {
+    next = next.replace(
+      /<link rel="apple-touch-icon"[^>]*>/i,
+      `<link rel="apple-touch-icon" href="${shareIcon}" />`
+    );
+  } else {
+    next = next.replace(
+      /<\/head>/i,
+      `    <link rel="apple-touch-icon" href="${shareIcon}" />\n  </head>`
+    );
+  }
+
+  if (/name="theme-color"/i.test(next)) {
+    next = next.replace(
+      /<meta name="theme-color"[^>]*>/i,
+      `<meta name="theme-color" content="${theme}" />`
+    );
+  }
 
   const ogBlock = [
     `<meta name="description" content="${safeDesc}" />`,
+    `<meta name="theme-color" content="${theme}" />`,
     `<meta property="og:type" content="website" />`,
     `<meta property="og:title" content="${safeTitle}" />`,
     `<meta property="og:description" content="${safeDesc}" />`,
     `<meta property="og:url" content="${safeUrl}" />`,
+    `<meta property="og:image" content="${shareIconLarge}" />`,
     `<meta name="twitter:card" content="summary" />`,
     `<meta name="twitter:title" content="${safeTitle}" />`,
     `<meta name="twitter:description" content="${safeDesc}" />`,
+    `<meta name="twitter:image" content="${shareIconLarge}" />`,
   ].join('\n    ');
 
   if (/property="og:title"/i.test(next)) {
+    // Shell already has OG tags (e.g. from a prior inject); still stamp the
+    // share-tinted image / theme so previews stay seamless.
+    if (/property="og:image"/i.test(next)) {
+      next = next.replace(
+        /<meta property="og:image"[^>]*>/i,
+        `<meta property="og:image" content="${shareIconLarge}" />`
+      );
+    } else {
+      next = next.replace(
+        /<\/head>/i,
+        `    <meta property="og:image" content="${shareIconLarge}" />\n  </head>`
+      );
+    }
+    if (/name="twitter:image"/i.test(next)) {
+      next = next.replace(
+        /<meta name="twitter:image"[^>]*>/i,
+        `<meta name="twitter:image" content="${shareIconLarge}" />`
+      );
+    }
     return next;
   }
   return next.replace(/<\/head>/i, `    ${ogBlock}\n  </head>`);
@@ -67,23 +115,25 @@ function injectMeta(html, { title, description, url }) {
 
 module.exports = async function handler(req, res) {
   const token =
-    (req.query && req.query.token) ||
-    (req.query && req.query.t) ||
-    '';
+    (req.query && req.query.token) || (req.query && req.query.t) || '';
 
-  const proto = (req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
-  const host = (req.headers['x-forwarded-host'] || req.headers.host || 'swallow-ctr.com')
+  const proto = (req.headers['x-forwarded-proto'] || 'https')
     .split(',')[0]
     .trim();
-  const pageUrl = `${proto}://${host}/public/photos-link/${token}`;
+  const host = (
+    req.headers['x-forwarded-host'] ||
+    req.headers.host ||
+    'swallow-ctr.com'
+  )
+    .split(',')[0]
+    .trim();
+  const origin = `${proto}://${host}`;
+  const pageUrl = `${origin}/public/photos-link/${token}`;
 
   const apiBase =
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.API_BASE_URL ||
-    '';
+    process.env.REACT_APP_API_BASE_URL || process.env.API_BASE_URL || '';
 
-  const title =
-    (await fetchProjectTitle(token, apiBase)) || DEFAULT_TITLE;
+  const title = (await fetchProjectTitle(token, apiBase)) || DEFAULT_TITLE;
   const description = DEFAULT_DESCRIPTION;
 
   let html;
@@ -94,16 +144,19 @@ module.exports = async function handler(req, res) {
       path.join(__dirname, '..', 'build', 'index.html'),
       path.join(__dirname, '..', 'client', 'build', 'index.html'),
     ];
-    const indexPath = candidates.find(p => fs.existsSync(p));
+    const indexPath = candidates.find((p) => fs.existsSync(p));
     if (!indexPath) throw new Error('index.html not found');
     html = fs.readFileSync(indexPath, 'utf8');
   } catch {
     html = `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${escapeHtml(title)}</title></head><body><div id="root"></div><script>location.replace(${JSON.stringify(pageUrl)})</script></body></html>`;
   }
 
-  html = injectMeta(html, { title, description, url: pageUrl });
+  html = injectMeta(html, { title, description, url: pageUrl, origin });
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  res.setHeader(
+    'Cache-Control',
+    'public, s-maxage=60, stale-while-revalidate=300'
+  );
   res.status(200).send(html);
 };
