@@ -1,9 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import PanoramaViewer from '../components/photo/PanoramaViewer';
 import PanZoomImage from '../components/photo/PanZoomImage';
 import PublicHeaderBanner from '../components/photo/PublicHeaderBanner';
 import WaypointPhotoSwitcher from '../components/photo/WaypointPhotoSwitcher';
+import WaypointSwitcher from '../components/photo/WaypointSwitcher';
+import PublicLinkMiniMap from '../components/photo/PublicLinkMiniMap';
 import PublicDrawingCanvas from '../components/drawings/PublicDrawingCanvas';
 import PublicPhotosLinkMap from '../components/map/PublicPhotosLinkMap';
 import WaypointPhotosModal from '../components/map/WaypointPhotosModal';
@@ -13,6 +21,10 @@ import {
   waypointsToPixelPositions,
 } from '../utils/drawingAffineTransform';
 import { formatMonthDayYear } from '../utils/dateTime';
+import {
+  orderLinkWaypoints,
+  pickNearestPhoto,
+} from '../utils/publicLinkNavigation';
 
 const sortByTakenAtAsc = (a, b) => {
   const ta = new Date(a.taken_at || 0).getTime();
@@ -46,6 +58,24 @@ const PublicPhotosLinkViewerPage = () => {
   const [photoError, setPhotoError] = useState('');
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const deepLinkAppliedRef = useRef(false);
+  // Hide waypoint switcher + mini map on phones; keep date switcher top-right.
+  const [isPhone, setIsPhone] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(max-width: 768px)').matches
+      : false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = (e) => setIsPhone(e.matches);
+    setIsPhone(mq.matches);
+    if (mq.addEventListener) {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +84,7 @@ const PublicPhotosLinkViewerPage = () => {
     deepLinkAppliedRef.current = false;
     publicPhotosLinkService
       .getLink(token)
-      .then(resp => {
+      .then((resp) => {
         if (cancelled) return;
         const data = resp?.link || null;
         setLink(data);
@@ -63,10 +93,12 @@ const PublicPhotosLinkViewerPage = () => {
         if (deepLinkPhotoId) {
           const targetId = String(deepLinkPhotoId).trim().toLowerCase();
           const match = (data.waypoints || [])
-            .flatMap(wp => wp.photos || [])
+            .flatMap((wp) => wp.photos || [])
             .find(
-              photo =>
-                String(photo.photo_id || '').trim().toLowerCase() === targetId,
+              (photo) =>
+                String(photo.photo_id || '')
+                  .trim()
+                  .toLowerCase() === targetId
             );
           deepLinkAppliedRef.current = true;
           setPriorView(defaultView);
@@ -76,12 +108,12 @@ const PublicPhotosLinkViewerPage = () => {
           setView(defaultView);
         }
       })
-      .catch(err => {
+      .catch((err) => {
         if (!cancelled) {
           setError(
             err?.status === 404
               ? 'This link is no longer available.'
-              : err?.payload?.error || err?.message || 'Unable to load link.',
+              : err?.payload?.error || err?.message || 'Unable to load link.'
           );
         }
       })
@@ -101,8 +133,13 @@ const PublicPhotosLinkViewerPage = () => {
     deepLinkAppliedRef.current = true;
     const targetId = String(deepLinkPhotoId).trim().toLowerCase();
     const match = (link.waypoints || [])
-      .flatMap(wp => wp.photos || [])
-      .find(photo => String(photo.photo_id || '').trim().toLowerCase() === targetId);
+      .flatMap((wp) => wp.photos || [])
+      .find(
+        (photo) =>
+          String(photo.photo_id || '')
+            .trim()
+            .toLowerCase() === targetId
+      );
 
     const defaultView = link.drawing ? 'drawing' : 'map';
     setPriorView(defaultView);
@@ -118,10 +155,14 @@ const PublicPhotosLinkViewerPage = () => {
     if (!link || view !== 'drawing') return [];
     if (captureMethod === '360_camera') {
       return (link.waypoints || [])
-        .filter(wp => wp.pixel_x != null && wp.pixel_y != null)
-        .map(wp => ({ ...wp, pixelX: wp.pixel_x, pixelY: wp.pixel_y }));
+        .filter((wp) => wp.pixel_x != null && wp.pixel_y != null)
+        .map((wp) => ({ ...wp, pixelX: wp.pixel_x, pixelY: wp.pixel_y }));
     }
-    if (captureMethod === 'drone' && link.drawing && isDrawingAligned(link.drawing)) {
+    if (
+      captureMethod === 'drone' &&
+      link.drawing &&
+      isDrawingAligned(link.drawing)
+    ) {
       return waypointsToPixelPositions(link.drawing, link.waypoints);
     }
     return [];
@@ -129,18 +170,25 @@ const PublicPhotosLinkViewerPage = () => {
 
   const mapWaypoints = useMemo(() => {
     if (!link || view !== 'map') return [];
-    return (link.waypoints || []).filter(wp => wp.lat != null && wp.lng != null);
+    return (link.waypoints || []).filter(
+      (wp) => wp.lat != null && wp.lng != null
+    );
   }, [link, view]);
 
+  const orderedWaypoints = useMemo(
+    () => orderLinkWaypoints(link?.waypoints, captureMethod),
+    [link, captureMethod]
+  );
+
   const openPhotoView = useCallback(
-    photo => {
+    (photo) => {
       if (!photo?.photo_id) return;
       setPriorView(view);
       setSelectedWaypoint(null);
       setActivePhotoId(photo.photo_id);
       setView('photo');
     },
-    [view],
+    [view]
   );
 
   const goBack = useCallback(() => {
@@ -150,6 +198,25 @@ const PublicPhotosLinkViewerPage = () => {
     setPhotoError('');
   }, [priorView]);
 
+  const preferredTakenAt = useMemo(() => {
+    if (photoDetail?.taken_at) return photoDetail.taken_at;
+    if (!link || !activePhotoId) return null;
+    for (const wp of link.waypoints || []) {
+      const match = (wp.photos || []).find((p) => p.photo_id === activePhotoId);
+      if (match?.taken_at) return match.taken_at;
+    }
+    return null;
+  }, [photoDetail, link, activePhotoId]);
+
+  const switchToWaypoint = useCallback(
+    (waypoint) => {
+      if (!waypoint) return;
+      const photo = pickNearestPhoto(waypoint.photos, preferredTakenAt);
+      if (photo?.photo_id) setActivePhotoId(photo.photo_id);
+    },
+    [preferredTakenAt]
+  );
+
   useEffect(() => {
     if (!activePhotoId) return undefined;
     let cancelled = false;
@@ -157,15 +224,15 @@ const PublicPhotosLinkViewerPage = () => {
     setPhotoError('');
     publicPhotosLinkService
       .getPhoto(token, activePhotoId)
-      .then(resp => {
+      .then((resp) => {
         if (!cancelled) setPhotoDetail(resp?.photo || null);
       })
-      .catch(err => {
+      .catch((err) => {
         if (!cancelled) {
           setPhotoError(
             err?.status === 404
               ? 'This photo is no longer available.'
-              : err?.payload?.error || err?.message || 'Unable to load photo.',
+              : err?.payload?.error || err?.message || 'Unable to load photo.'
           );
         }
       })
@@ -182,10 +249,17 @@ const PublicPhotosLinkViewerPage = () => {
       return photoDetail ? [photoDetail] : [];
     }
     const waypoint = (link.waypoints || []).find(
-      wp => wp.waypoint_id === photoDetail.waypoint_id,
+      (wp) => wp.waypoint_id === photoDetail.waypoint_id
     );
     return [...(waypoint?.photos || [])].sort(sortByTakenAtAsc);
   }, [link, photoDetail]);
+
+  const currentWaypointId =
+    photoDetail?.waypoint_id ||
+    (link?.waypoints || []).find((wp) =>
+      (wp.photos || []).some((p) => p.photo_id === activePhotoId)
+    )?.waypoint_id ||
+    null;
 
   const isPanorama =
     photoDetail?.capture_method === '360_camera' ||
@@ -218,7 +292,7 @@ const PublicPhotosLinkViewerPage = () => {
     ensureMeta(
       'property',
       'og:description',
-      'Shared project photos on Swallow',
+      'Shared project photos on Swallow'
     );
 
     return () => {
@@ -228,7 +302,13 @@ const PublicPhotosLinkViewerPage = () => {
 
   if (isLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <PublicHeaderBanner />
         <div
           style={{
@@ -247,7 +327,13 @@ const PublicPhotosLinkViewerPage = () => {
 
   if (error || !link) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <PublicHeaderBanner />
         <div
           style={{
@@ -307,12 +393,18 @@ const PublicPhotosLinkViewerPage = () => {
                   color: 'var(--color-text-secondary)',
                 }}
               >
-                {photoError || (isPhotoLoading ? 'Loading photo…' : 'Photo not available.')}
+                {photoError ||
+                  (isPhotoLoading ? 'Loading photo…' : 'Photo not available.')}
               </div>
             )}
 
             <div
-              style={{ position: 'absolute', top: 'var(--space-md)', left: 'var(--space-md)', zIndex: 10 }}
+              style={{
+                position: 'absolute',
+                top: 'var(--space-md)',
+                left: 'var(--space-md)',
+                zIndex: 10,
+              }}
             >
               <button
                 type="button"
@@ -325,12 +417,63 @@ const PublicPhotosLinkViewerPage = () => {
 
             {sameWaypointPhotos.length ? (
               <div
-                style={{ position: 'absolute', top: 'var(--space-md)', right: 'var(--space-md)', zIndex: 10 }}
+                style={
+                  isPhone
+                    ? {
+                        position: 'absolute',
+                        top: 'var(--space-md)',
+                        right: 'var(--space-md)',
+                        zIndex: 10,
+                      }
+                    : {
+                        position: 'absolute',
+                        top: 'var(--space-md)',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 10,
+                        maxWidth: 'calc(100% - 280px)',
+                      }
+                }
               >
                 <WaypointPhotoSwitcher
                   orderedPhotos={sameWaypointPhotos}
                   currentId={activePhotoId}
                   onSelect={setActivePhotoId}
+                />
+              </div>
+            ) : null}
+
+            {!isPhone && orderedWaypoints.length ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'var(--space-md)',
+                  right: 'var(--space-md)',
+                  zIndex: 10,
+                }}
+              >
+                <WaypointSwitcher
+                  orderedWaypoints={orderedWaypoints}
+                  currentWaypointId={currentWaypointId}
+                  onSelect={switchToWaypoint}
+                />
+              </div>
+            ) : null}
+
+            {!isPhone ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 'var(--space-md)',
+                  left: 'var(--space-md)',
+                  zIndex: 10,
+                }}
+              >
+                <PublicLinkMiniMap
+                  link={link}
+                  captureMethod={captureMethod}
+                  activeWaypointId={currentWaypointId}
+                  onWaypointSelect={switchToWaypoint}
                 />
               </div>
             ) : null}
@@ -344,7 +487,12 @@ const PublicPhotosLinkViewerPage = () => {
             />
             {canToggleMapDrawing ? (
               <div
-                style={{ position: 'absolute', top: 'var(--space-md)', left: 'var(--space-md)', zIndex: 10 }}
+                style={{
+                  position: 'absolute',
+                  top: 'var(--space-md)',
+                  left: 'var(--space-md)',
+                  zIndex: 10,
+                }}
               >
                 <button
                   type="button"
@@ -371,7 +519,12 @@ const PublicPhotosLinkViewerPage = () => {
             ) : null}
             {canToggleMapDrawing ? (
               <div
-                style={{ position: 'absolute', top: 'var(--space-md)', left: 'var(--space-md)', zIndex: 10 }}
+                style={{
+                  position: 'absolute',
+                  top: 'var(--space-md)',
+                  left: 'var(--space-md)',
+                  zIndex: 10,
+                }}
               >
                 <button
                   type="button"

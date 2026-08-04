@@ -45,7 +45,7 @@ const droneIconMarkup = (cx, cy, scale) => {
   const arms = rotors
     .map(
       ([x, y]) =>
-        `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}" stroke="${ICON_COLOR}" stroke-width="${armStroke.toFixed(2)}" stroke-linecap="round"/>`,
+        `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}" stroke="${ICON_COLOR}" stroke-width="${armStroke.toFixed(2)}" stroke-linecap="round"/>`
     )
     .join('');
 
@@ -108,13 +108,24 @@ const camera360IconMarkup = (cx, cy, scale, fillColor) => {
 /** Default on-screen size (px) for the circle marker in interactive views. */
 export const WAYPOINT_MARKER_SIZE = { width: 30, height: 30 };
 
+/** Compact size for the Public Link photo-view mini map. */
+export const WAYPOINT_MARKER_SIZE_MINI = { width: 18, height: 18 };
+
+/** Active-waypoint highlight on the mini map (project pin / --color-accent). */
+export const WAYPOINT_MARKER_ACTIVE_FILL = '#9b4a2f';
+
 /**
  * Builds the circle waypoint marker SVG markup for a capture method: a
  * filled circle with a white border, sized/anchored at its center, and a
  * simple white icon (drone, or camera + "360" for 360_camera).
+ * Optional `fillColor` overrides the capture-method fill (e.g. active highlight).
  */
-export function buildCircleMarkerSvg(captureMethod, { width, height } = {}) {
-  const fillColor = FILL_COLORS[captureMethod] || FILL_COLORS['360_camera'];
+export function buildCircleMarkerSvg(
+  captureMethod,
+  { width, height, fillColor: fillOverride } = {}
+) {
+  const fillColor =
+    fillOverride || FILL_COLORS[captureMethod] || FILL_COLORS['360_camera'];
   const strokeWidth = RADIUS * 2 * STROKE_WIDTH_RATIO;
   const iconScale = captureMethod === 'drone' ? RADIUS * 0.72 : RADIUS * 0.82;
   const icon =

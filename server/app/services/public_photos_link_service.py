@@ -162,6 +162,7 @@ def get_public_link_view(token: str) -> Optional[Dict[str, Any]]:
             {
                 "waypoint_id": waypoint_id,
                 "waypoint_name": wp.get("waypoint_name"),
+                "sequence": wp.get("sequence"),
                 "lat": wp.get("lat"),
                 "lng": wp.get("lng"),
                 "pixel_x": wp.get("pixel_x"),

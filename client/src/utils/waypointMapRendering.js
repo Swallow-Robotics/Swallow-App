@@ -10,7 +10,11 @@
 
 import maplibregl from 'maplibre-gl';
 import { toLngLat, parseCoordinate } from './mapDataUtils';
-import { buildCircleMarkerSvg, WAYPOINT_MARKER_SIZE } from './waypointMarkerIcons';
+import {
+  buildCircleMarkerSvg,
+  WAYPOINT_MARKER_ACTIVE_FILL,
+  WAYPOINT_MARKER_SIZE,
+} from './waypointMarkerIcons';
 
 /**
  * Removes all waypoint markers and the project pin from the map.
@@ -105,7 +109,7 @@ export function addWaypointMarkersToMap(map, refs, options) {
     el.setAttribute('tabindex', '0');
     el.setAttribute(
       'aria-label',
-      `View photos for ${waypoint.waypoint_name || 'waypoint'}`,
+      `View photos for ${waypoint.waypoint_name || 'waypoint'}`
     );
 
     const glyph = el.querySelector('.wp-glyph');
@@ -165,7 +169,7 @@ export function addWaypointMarkersToMap(map, refs, options) {
     const body = document.createElementNS(ns, 'path');
     body.setAttribute(
       'd',
-      'M12 1C6.477 1 2 5.477 2 11c0 7.732 10 20 10 20s10-12.268 10-20C22 5.477 17.523 1 12 1z',
+      'M12 1C6.477 1 2 5.477 2 11c0 7.732 10 20 10 20s10-12.268 10-20C22 5.477 17.523 1 12 1z'
     );
     body.setAttribute('fill', 'var(--color-accent)');
     body.setAttribute('stroke', 'var(--color-surface-primary)');
@@ -249,6 +253,9 @@ export function addWaypointMarkersToMap(map, refs, options) {
  * pin, no drag/edit affordances. Center-anchored (not bottom-anchored like
  * the authenticated pin).
  *
+ * Optional `markerSize` and `activeWaypointId` support the photo-view mini map
+ * (scaled markers + accent highlight for the active waypoint).
+ *
  * @returns {{ bounds: maplibregl.LngLatBounds }}
  */
 export function addSimpleWaypointMarkersToMap(map, refs, options) {
@@ -258,18 +265,23 @@ export function addSimpleWaypointMarkersToMap(map, refs, options) {
     waypoints = [],
     onWaypointClick = () => {},
     captureMethod = '360_camera',
+    markerSize = WAYPOINT_MARKER_SIZE,
+    activeWaypointId = null,
   } = options || {};
   const { markersRef } = refs;
   clearWaypointMarkers(refs);
 
   const bounds = new maplibregl.LngLatBounds();
-  const { width, height } = WAYPOINT_MARKER_SIZE;
+  const width = markerSize?.width || WAYPOINT_MARKER_SIZE.width;
+  const height = markerSize?.height || WAYPOINT_MARKER_SIZE.height;
 
   waypoints.forEach((waypoint) => {
     const lngLat = toLngLat(waypoint.lng, waypoint.lat);
     if (!lngLat) return;
     bounds.extend(lngLat);
 
+    const isActive =
+      activeWaypointId && waypoint.waypoint_id === activeWaypointId;
     const el = document.createElement('div');
     el.style.width = `${width}px`;
     el.style.height = `${height}px`;
@@ -277,15 +289,22 @@ export function addSimpleWaypointMarkersToMap(map, refs, options) {
     el.style.userSelect = 'none';
     el.style.lineHeight = '0';
     el.style.borderRadius = '50%';
-    el.style.boxShadow = '0 2px 6px rgba(31,58,95,0.35)';
-    el.innerHTML = buildCircleMarkerSvg(captureMethod, { width, height });
+    el.style.boxShadow = isActive
+      ? '0 0 0 2px #9b4a2f, 0 2px 6px rgba(31,58,95,0.35)'
+      : '0 2px 6px rgba(31,58,95,0.35)';
+    el.innerHTML = buildCircleMarkerSvg(captureMethod, {
+      width,
+      height,
+      fillColor: isActive ? WAYPOINT_MARKER_ACTIVE_FILL : undefined,
+    });
     el.title = waypoint.waypoint_name || 'Waypoint';
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
     el.setAttribute(
       'aria-label',
-      `View photos for ${waypoint.waypoint_name || 'waypoint'}`,
+      `View photos for ${waypoint.waypoint_name || 'waypoint'}`
     );
+    if (isActive) el.setAttribute('aria-current', 'true');
 
     const open = (evt) => {
       evt?.stopPropagation?.();

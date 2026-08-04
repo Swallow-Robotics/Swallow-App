@@ -1,5 +1,9 @@
 import React from 'react';
-import { buildCircleMarkerSvg, WAYPOINT_MARKER_SIZE } from '../../utils/waypointMarkerIcons';
+import {
+  buildCircleMarkerSvg,
+  WAYPOINT_MARKER_ACTIVE_FILL,
+  WAYPOINT_MARKER_SIZE,
+} from '../../utils/waypointMarkerIcons';
 
 const WAYPOINT_PIN_SVG =
   '<svg width="34" height="44" viewBox="0 0 24 32" fill="none" aria-hidden="true">' +
@@ -58,19 +62,25 @@ export function ControlPointMarker({
   );
 }
 
-export function WaypointMarker({ marker, screenX, screenY, onClick, onContextMenu }) {
+export function WaypointMarker({
+  marker,
+  screenX,
+  screenY,
+  onClick,
+  onContextMenu,
+}) {
   const x = screenX ?? marker.pixelX;
   const y = screenY ?? marker.pixelY;
   const isMoving = !!marker.isMoving;
   return (
     <button
       type="button"
-      onPointerDown={e => e.stopPropagation()}
-      onClick={e => {
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
         e.stopPropagation();
         onClick?.(marker);
       }}
-      onContextMenu={e => {
+      onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
         onContextMenu?.(marker, e.clientX, e.clientY);
@@ -104,19 +114,33 @@ export function WaypointMarker({ marker, screenX, screenY, onClick, onContextMen
  * pointerdown is NOT stopPropagated — the gesture plane sits underneath and
  * owns pan/pinch; we only stop click so a marker tap does not also count as
  * an empty-canvas click.
+ *
+ * Optional `size` (px) and `isActive` (accent fill) are used by the photo-view
+ * mini map; defaults match the main public drawing markers.
  */
-export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captureMethod }) {
+export function SimpleWaypointMarker({
+  marker,
+  screenX,
+  screenY,
+  onClick,
+  captureMethod,
+  size,
+  isActive = false,
+}) {
   const x = screenX ?? marker.pixelX;
   const y = screenY ?? marker.pixelY;
-  const { width, height } = WAYPOINT_MARKER_SIZE;
+  const width = size || WAYPOINT_MARKER_SIZE.width;
+  const height = size || WAYPOINT_MARKER_SIZE.height;
+  const fillColor = isActive ? WAYPOINT_MARKER_ACTIVE_FILL : undefined;
   return (
     <button
       type="button"
-      onClick={e => {
+      onClick={(e) => {
         e.stopPropagation();
         onClick?.(marker);
       }}
       aria-label={marker.waypoint_name || 'Waypoint'}
+      aria-current={isActive ? 'true' : undefined}
       style={{
         position: 'absolute',
         left: x,
@@ -129,12 +153,14 @@ export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captur
         padding: 0,
         cursor: 'pointer',
         lineHeight: 0,
-        zIndex: 2,
+        zIndex: isActive ? 3 : 2,
         pointerEvents: 'auto',
         width,
         height,
         borderRadius: '50%',
-        boxShadow: '0 2px 6px rgba(31,58,95,0.35)',
+        boxShadow: isActive
+          ? '0 0 0 2px var(--color-accent), 0 2px 6px rgba(31,58,95,0.35)'
+          : '0 2px 6px rgba(31,58,95,0.35)',
         WebkitBackfaceVisibility: 'hidden',
         backfaceVisibility: 'hidden',
         touchAction: 'none',
@@ -143,20 +169,33 @@ export function SimpleWaypointMarker({ marker, screenX, screenY, onClick, captur
       <span
         style={{ display: 'block', lineHeight: 0 }}
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: buildCircleMarkerSvg(captureMethod, { width, height }) }}
+        dangerouslySetInnerHTML={{
+          __html: buildCircleMarkerSvg(captureMethod, {
+            width,
+            height,
+            fillColor,
+          }),
+        }}
       />
     </button>
   );
 }
 
-export function ProjectMarker({ pixelX, pixelY, screenX, screenY, name, onClick }) {
+export function ProjectMarker({
+  pixelX,
+  pixelY,
+  screenX,
+  screenY,
+  name,
+  onClick,
+}) {
   const x = screenX ?? pixelX;
   const y = screenY ?? pixelY;
   return (
     <button
       type="button"
-      onPointerDown={e => e.stopPropagation()}
-      onClick={e => {
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
         e.stopPropagation();
         onClick?.();
       }}
