@@ -123,6 +123,8 @@ export function SimpleWaypointMarker({
   screenX,
   screenY,
   onClick,
+  onMouseEnter,
+  onMouseLeave,
   captureMethod,
   size,
   isActive = false,
@@ -139,6 +141,8 @@ export function SimpleWaypointMarker({
         e.stopPropagation();
         onClick?.(marker);
       }}
+      onMouseEnter={() => onMouseEnter?.(marker)}
+      onMouseLeave={() => onMouseLeave?.(marker)}
       aria-label={marker.waypoint_name || 'Waypoint'}
       aria-current={isActive ? 'true' : undefined}
       style={{

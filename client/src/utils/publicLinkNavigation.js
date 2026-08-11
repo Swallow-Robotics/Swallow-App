@@ -67,3 +67,14 @@ export function pickNearestPhoto(photos, preferredTakenAt) {
   });
   return best;
 }
+
+/** Newest photo in a waypoint stack (used for hover thumbnail previews). */
+export function pickNewestPhoto(photos) {
+  return pickNearestPhoto(photos, null);
+}
+
+/** Thumbnail URL for the newest photo on a waypoint, if available. */
+export function newestThumbnailUrl(waypoint) {
+  const photo = pickNewestPhoto(waypoint?.photos);
+  return photo?.thumbnail_r2_url || photo?.r2_url || '';
+}

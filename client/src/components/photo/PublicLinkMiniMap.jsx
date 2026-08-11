@@ -17,38 +17,10 @@ import {
   MINI_MAP_MAX_SCALE,
   MINI_MAP_MIN_SCALE,
 } from '../../utils/drawingPanZoom';
+import ChevronIcon from './ChevronIcon';
 
 const MINI_SIZE = { width: 168, height: 128 };
 const COLLAPSE_BAR_HEIGHT = 22;
-
-const ChevronIcon = ({ direction }) => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 14 14"
-    fill="none"
-    aria-hidden="true"
-    focusable="false"
-  >
-    {direction === 'up' ? (
-      <path
-        d="M3 9L7 5L11 9"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    ) : (
-      <path
-        d="M3 5L7 9L11 5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    )}
-  </svg>
-);
 
 const collapseBarStyle = {
   display: 'flex',

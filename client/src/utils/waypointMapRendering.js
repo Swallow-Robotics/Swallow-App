@@ -264,6 +264,7 @@ export function addSimpleWaypointMarkersToMap(map, refs, options) {
   const {
     waypoints = [],
     onWaypointClick = () => {},
+    onWaypointHover = null,
     captureMethod = '360_camera',
     markerSize = WAYPOINT_MARKER_SIZE,
     activeWaypointId = null,
@@ -317,6 +318,10 @@ export function addSimpleWaypointMarkersToMap(map, refs, options) {
         open(evt);
       }
     });
+    if (typeof onWaypointHover === 'function') {
+      el.addEventListener('mouseenter', () => onWaypointHover(waypoint, el));
+      el.addEventListener('mouseleave', () => onWaypointHover(null, el));
+    }
 
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat(lngLat)

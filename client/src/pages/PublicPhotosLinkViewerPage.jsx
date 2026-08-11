@@ -20,7 +20,7 @@ import {
   isDrawingAligned,
   waypointsToPixelPositions,
 } from '../utils/drawingAffineTransform';
-import { formatMonthDayYear } from '../utils/dateTime';
+import { formatMonthDayYear, dateKeyFromIso } from '../utils/dateTime';
 import {
   orderLinkWaypoints,
   pickNearestPhoto,
@@ -179,6 +179,17 @@ const PublicPhotosLinkViewerPage = () => {
     () => orderLinkWaypoints(link?.waypoints, captureMethod),
     [link, captureMethod]
   );
+
+  const hasMultipleDates = useMemo(() => {
+    const keys = new Set();
+    (link?.waypoints || []).forEach((wp) => {
+      (wp.photos || []).forEach((photo) => {
+        const key = dateKeyFromIso(photo.taken_at);
+        if (key) keys.add(key);
+      });
+    });
+    return keys.size > 1;
+  }, [link]);
 
   const openPhotoView = useCallback(
     (photo) => {
@@ -519,7 +530,7 @@ const PublicPhotosLinkViewerPage = () => {
               </button>
             </div>
 
-            {sameWaypointPhotos.length ? (
+            {hasMultipleDates && sameWaypointPhotos.length ? (
               <div
                 style={
                   isPhone
@@ -641,6 +652,8 @@ const PublicPhotosLinkViewerPage = () => {
       <WaypointPhotosModal
         open={!!selectedWaypoint}
         waypoint={selectedWaypoint}
+        orderedWaypoints={orderedWaypoints}
+        onSelectWaypoint={setSelectedWaypoint}
         onClose={() => setSelectedWaypoint(null)}
         onPhotoClick={openPhotoView}
       />

@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
@@ -10,19 +16,26 @@ import {
   createBasemapStyleController,
 } from '../../utils/basemapStyle';
 import { BasemapToggleControl } from '../../utils/basemapToggleControl';
+import WaypointHoverPreview, {
+  PREVIEW_SIZE,
+} from '../photo/WaypointHoverPreview';
+import { newestThumbnailUrl } from '../../utils/publicLinkNavigation';
 
 /**
  * Minimal, read-only MapLibre map for the public Photos Link viewer (drone,
  * map-only links or the Map toggle). No project pin, drag mode, or edit
  * affordances — those are authenticated-only Photos page features.
+ * Hovering a waypoint shows the newest photo thumbnail for that stack.
  */
 const PublicPhotosLinkMap = ({ waypoints, onWaypointClick, captureMethod }) => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
+  const wrapRef = useRef(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const markersRef = useRef([]);
   const hasAutoFitRef = useRef(false);
   const markerRefs = useMemo(() => ({ markersRef }), []);
+  const [hover, setHover] = useState(null);
 
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return undefined;
@@ -46,14 +59,14 @@ const PublicPhotosLinkMap = ({ waypoints, onWaypointClick, captureMethod }) => {
 
     mapInstance.current.addControl(
       new maplibregl.NavigationControl(),
-      'top-right',
+      'top-right'
     );
 
     const handleLoad = () => setIsMapReady(true);
     mapInstance.current.on('load', handleLoad);
 
     const styleController = createBasemapStyleController(mapInstance.current);
-    const applyStyle = styleKey => {
+    const applyStyle = (styleKey) => {
       styleController.applyStyle(styleKey);
       toggleControl?.setActive();
     };
@@ -72,12 +85,37 @@ const PublicPhotosLinkMap = ({ waypoints, onWaypointClick, captureMethod }) => {
     };
   }, [markerRefs]);
 
+  const handleWaypointHover = useCallback((waypoint, el) => {
+    if (!waypoint || !el || !wrapRef.current) {
+      setHover(null);
+      return;
+    }
+    const thumb = newestThumbnailUrl(waypoint);
+    if (!thumb) {
+      setHover(null);
+      return;
+    }
+    const wrapRect = wrapRef.current.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    setHover({
+      src: thumb,
+      label: waypoint.waypoint_name,
+      x: elRect.right - wrapRect.left + 8,
+      y: elRect.top + elRect.height / 2 - wrapRect.top - PREVIEW_SIZE / 2,
+    });
+  }, []);
+
   useEffect(() => {
     if (!mapInstance.current || !isMapReady) return undefined;
     const { bounds } = addSimpleWaypointMarkersToMap(
       mapInstance.current,
       markerRefs,
-      { waypoints, onWaypointClick, captureMethod },
+      {
+        waypoints,
+        onWaypointClick,
+        onWaypointHover: handleWaypointHover,
+        captureMethod,
+      }
     );
     if (!hasAutoFitRef.current && bounds && !bounds.isEmpty()) {
       mapInstance.current.fitBounds(bounds, {
@@ -87,12 +125,34 @@ const PublicPhotosLinkMap = ({ waypoints, onWaypointClick, captureMethod }) => {
       });
       hasAutoFitRef.current = true;
     }
-    return () => clearWaypointMarkers(markerRefs);
-  }, [waypoints, onWaypointClick, captureMethod, isMapReady, markerRefs]);
+    return () => {
+      setHover(null);
+      clearWaypointMarkers(markerRefs);
+    };
+  }, [
+    waypoints,
+    onWaypointClick,
+    handleWaypointHover,
+    captureMethod,
+    isMapReady,
+    markerRefs,
+  ]);
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div
+      ref={wrapRef}
+      style={{ width: '100%', height: '100%', position: 'relative' }}
+    >
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+      <WaypointHoverPreview
+        visible={!!hover}
+        src={hover?.src}
+        label={hover?.label}
+        style={{
+          left: hover?.x || 0,
+          top: hover?.y || 0,
+        }}
+      />
     </div>
   );
 };
