@@ -8,9 +8,9 @@ const R2_BASE = (
   ''
 ).replace(/\/$/, '');
 
-/** Sample project drone 360° panorama (project 0bd820dd…). */
+/** Sample project — waypoint Eleven (sequence 11) active drone 360°. */
 const SAMPLE_PANO_PATH =
-  'projects/0bd820dd-9cd2-42f4-8c3d-3a576fbd1a18/photos/a58632e4-a60b-4175-af0a-0c273d95d724.jpg';
+  'projects/0bd820dd-9cd2-42f4-8c3d-3a576fbd1a18/photos/ba34fef5-ecf9-46b3-9a60-b6a352586f8f.jpg';
 
 const SAMPLE_PANO_URL = R2_BASE
   ? `${R2_BASE}/${SAMPLE_PANO_PATH}`
@@ -19,7 +19,7 @@ const SAMPLE_PANO_URL = R2_BASE
 const BENEFITS = [
   {
     title: 'Capture',
-    body: 'Quickly capture 360° imagery of your entire jobsite.',
+    body: 'A qualified drone pilot travels to your jobsite and captures 360° imagery of the site.',
   },
   {
     title: 'Document',
@@ -36,7 +36,7 @@ const STEPS = [
   {
     n: '1',
     title: 'Capture',
-    body: 'Drone captures a panorama of the jobsite.',
+    body: 'A qualified drone pilot visits your jobsite and captures 360° panoramas.',
   },
   {
     n: '2',
@@ -46,7 +46,7 @@ const STEPS = [
   {
     n: '3',
     title: 'Track',
-    body: 'Track site conditions and progress over time.',
+    body: 'Document and share site conditions and progress over time.',
   },
 ];
 
@@ -131,52 +131,61 @@ const MarketingHomepageTestPage = () => {
 
   return (
     <div className="mkt-home">
-      <header className="mkt-home__header">
-        <div className="mkt-home__header-inner">
-          <a href="#top" className="mkt-home__brand">
-            <img
-              src={`${process.env.PUBLIC_URL}/logo192.png`}
-              alt=""
-              className="mkt-home__brand-logo"
-            />
-            <span>Swallow CTR</span>
-          </a>
-          <nav className="mkt-home__nav" aria-label="Marketing">
+      <header className="App-header mkt-home__banner">
+        <div className="App-header__inner">
+          <div className="App-header__left">
+            <a href="#top" className="App-header__logoLink" aria-label="Swallow">
+              <img
+                src={`${process.env.PUBLIC_URL}/logo192-white.png`}
+                alt="Swallow"
+                className="App-header__logo"
+              />
+              <span className="mkt-home__brand-name">Swallow</span>
+            </a>
+            <nav className="App-header__tabs" aria-label="Marketing">
+              <button
+                type="button"
+                className="App-header__tab"
+                onClick={() => scrollToId('platform')}
+              >
+                Platform
+              </button>
+              <button
+                type="button"
+                className="App-header__tab"
+                onClick={() => scrollToId('how-it-works')}
+              >
+                How It Works
+              </button>
+              <button
+                type="button"
+                className="App-header__tab"
+                onClick={() => scrollToId('contact')}
+              >
+                Contact
+              </button>
+            </nav>
+          </div>
+          <div className="App-header__right">
             <button
               type="button"
-              className="mkt-home__nav-link"
-              onClick={() => scrollToId('platform')}
+              className="mkt-home__banner-cta"
+              onClick={openForm}
             >
-              Platform
+              Request a Demo
             </button>
-            <button
-              type="button"
-              className="mkt-home__nav-link"
-              onClick={() => scrollToId('how-it-works')}
-            >
-              How It Works
-            </button>
-            <button
-              type="button"
-              className="mkt-home__nav-link"
-              onClick={() => scrollToId('contact')}
-            >
-              Contact
-            </button>
-          </nav>
-          <button type="button" className="btn-primary" onClick={openForm}>
-            Request a Demo
-          </button>
+          </div>
         </div>
       </header>
 
-      <main id="top">
+      <main id="top" className="mkt-home__main">
         <section className="mkt-home__hero">
           <div className="mkt-home__hero-copy">
             <h1>See Your Jobsite From Anywhere.</h1>
             <p>
-              Capture immersive 360° drone panoramas of your construction site
-              and keep a visual record of progress over time.
+              A qualified Swallow pilot visits your construction site to capture
+              immersive 360° drone panoramas — so your team can document and
+              share progress over time.
             </p>
             <div className="mkt-home__hero-actions">
               <button type="button" className="btn-primary" onClick={openForm}>
@@ -216,7 +225,10 @@ const MarketingHomepageTestPage = () => {
           </div>
         </section>
 
-        <section className="mkt-home__section mkt-home__section--muted" id="how-it-works">
+        <section
+          className="mkt-home__section mkt-home__section--muted"
+          id="how-it-works"
+        >
           <h2 className="mkt-home__section-title">How It Works</h2>
           <ol className="mkt-home__steps">
             {STEPS.map(step => (
@@ -232,7 +244,7 @@ const MarketingHomepageTestPage = () => {
         </section>
 
         <section className="mkt-home__cta" id="contact">
-          <h2>Want to see what Swallow CTR can do for your project?</h2>
+          <h2>Want to see what Swallow can do for your project?</h2>
           <button type="button" className="btn-primary" onClick={openForm}>
             Request a Demo
           </button>
@@ -240,7 +252,7 @@ const MarketingHomepageTestPage = () => {
       </main>
 
       <footer className="mkt-home__footer">
-        <strong>Swallow CTR</strong>
+        <strong>Swallow</strong>
         <p>Construction site documentation, reimagined.</p>
         <a href="mailto:contact@swallow-ctr.com">contact@swallow-ctr.com</a>
       </footer>

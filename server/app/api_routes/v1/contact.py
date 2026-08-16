@@ -46,7 +46,7 @@ def _send_email(payload: dict) -> bool:
     use_tls = (os.getenv("SMTP_USE_TLS") or "true").strip().lower() != "false"
 
     msg = EmailMessage()
-    msg["Subject"] = f"Swallow CTR demo request — {payload['company']}"
+    msg["Subject"] = f"Swallow demo request — {payload['company']}"
     msg["From"] = mail_from
     msg["To"] = mail_to
     msg["Reply-To"] = payload["email"]

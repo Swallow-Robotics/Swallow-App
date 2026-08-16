@@ -2849,62 +2849,59 @@
   overflow: auto;
   background: var(--color-background);
   color: var(--color-text-primary);
+  text-align: left;
 }
 
-.mkt-home__header {
+.mkt-home__banner {
   position: sticky;
   top: 0;
-  z-index: 50;
-  background: var(--color-surface-primary);
-  border-bottom: 1px solid var(--color-border);
 }
 
-.mkt-home__header-inner {
-  max-width: var(--layout-max-width);
-  margin: 0 auto;
-  padding: var(--space-md) var(--layout-margin-x);
-  display: flex;
-  align-items: center;
-  gap: var(--space-lg);
-}
-
-.mkt-home__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  text-decoration: none;
-  color: var(--color-deep-plumage-blue);
+.mkt-home__brand-name {
+  margin-left: var(--space-sm);
+  color: var(--color-warm-feather-white);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
+  letter-spacing: var(--letter-spacing-tight);
 }
 
-.mkt-home__brand-logo {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
-
-.mkt-home__nav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-left: auto;
-}
-
-.mkt-home__nav-link {
+.mkt-home__banner .App-header__tab {
   background: none;
   border: none;
-  padding: 0;
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-  cursor: pointer;
+  font: inherit;
 }
 
-.mkt-home__nav-link:hover {
-  color: var(--color-deep-plumage-blue);
+.mkt-home__banner-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-warm-feather-white);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.mkt-home__banner-cta:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.mkt-home__banner-cta:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 1px;
+}
+
+.mkt-home__main {
+  flex: 1;
 }
 
 .mkt-home__hero {
@@ -3122,15 +3119,12 @@
 }
 
 @media (max-width: 900px) {
-  .mkt-home__header-inner {
+  .mkt-home__banner .App-header__inner {
     flex-wrap: wrap;
   }
 
-  .mkt-home__nav {
-    order: 3;
+  .mkt-home__banner .App-header__tabs {
     width: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
     overflow-x: auto;
   }
 
