@@ -48,6 +48,7 @@ import PlanEditPage from "./pages/PlanEditPage";
 import PlanFleetPage from "./pages/PlanFleetPage";
 import PlanSimPage from "./pages/PlanSimPage";
 import HomePage from "./pages/HomePage";
+import MarketingHomepageTestPage from "./pages/MarketingHomepageTestPage";
 
 const useDomain = () => {
   const location = useLocation();
@@ -311,12 +312,14 @@ export function AppRoutes() {
 
   // The public photo viewers always render their own minimal banner and
   // never the app-wide nav (Header/ViewNav/PlanNav), regardless of the
-  // embed param.
+  // embed param. Marketing test homepage has its own header.
   const isPublicPhotoRoute =
     location.pathname.startsWith("/public/photos/") ||
     location.pathname.startsWith("/public/photos-link/");
+  const isMarketingTestRoute = location.pathname.startsWith("/homepage/");
   const showHeader =
     !isPublicPhotoRoute &&
+    !isMarketingTestRoute &&
     !(
       location.pathname.startsWith("/public") &&
       new URLSearchParams(location.search).get("embed") === "1"
@@ -512,6 +515,12 @@ export function AppRoutes() {
           <Route
             path="/upload"
             element={<Navigate to="/view/photos" replace />}
+          />
+
+          {/* Marketing homepage test (public; does not replace /) */}
+          <Route
+            path="/homepage/test"
+            element={<MarketingHomepageTestPage />}
           />
 
           {/* Root — Swallow portal home (internal only) */}
