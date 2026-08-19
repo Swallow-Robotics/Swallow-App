@@ -2944,6 +2944,10 @@
   scroll-margin-top: 72px;
 }
 
+#location {
+  scroll-margin-top: 72px;
+}
+
 .mkt-home__pano-frame {
   position: relative;
   width: 100%;
@@ -2958,14 +2962,6 @@
 
 .mkt-home__pano {
   border-radius: var(--radius-xl);
-}
-
-.mkt-home__pano-locate {
-  position: absolute;
-  left: var(--space-sm);
-  bottom: var(--space-sm);
-  z-index: 3;
-  pointer-events: none;
 }
 
 .mkt-home__locate-frame {
@@ -3153,12 +3149,18 @@
   padding: var(--space-lg) var(--layout-margin-x);
 }
 
-.mkt-home__footer strong {
-  display: block;
-  margin-bottom: var(--space-xs);
-  font-size: var(--font-size-sm);
+.mkt-home__footer-brand {
+  margin: 0;
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
   color: var(--color-deep-plumage-blue);
+}
+
+.mkt-home__footer-legal {
+  margin: 2px 0 var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 
 .mkt-home__footer a {
@@ -3211,11 +3213,6 @@
   .mkt-home__location,
   .mkt-home__steps {
     grid-template-columns: 1fr;
-  }
-
-  .mkt-home__pano-locate .mkt-home__locate-frame {
-    width: 132px;
-    height: 100px;
   }
 
   .mkt-home__section,

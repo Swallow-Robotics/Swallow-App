@@ -37,17 +37,17 @@ const STEPS = [
   {
     n: '1',
     title: 'Tell us what you need',
-    body: 'Photos, video, 360° views — whatever would help the project.',
+    body: 'Photos, video, 360° aerials.',
   },
   {
     n: '2',
     title: 'We capture it',
-    body: 'Swallow takes care of the logistics and prepares the imagery.',
+    body: 'Swallow takes care of the logistics and prepares the aerials.',
   },
   {
     n: '3',
     title: 'Share with your team',
-    body: 'Get views tied to your project, ready to use and pass on.',
+    body: 'Get aerials for your project, ready to view and share.',
   },
 ];
 
@@ -170,9 +170,13 @@ const SampleLocationMap = () => {
     const pin = document.createElement('div');
     pin.className = 'mkt-home__map-pin';
     pin.innerHTML = LOCATION_PIN_SVG;
+    pin.setAttribute('aria-hidden', 'true');
     const marker = new maplibregl.Marker({ element: pin, anchor: 'center' })
       .setLngLat([SAMPLE_LOCATION.lng, SAMPLE_LOCATION.lat])
       .addTo(map);
+    marker.getElement().setAttribute('aria-hidden', 'true');
+    marker.getElement().setAttribute('role', 'img');
+    marker.getElement().tabIndex = -1;
 
     const resize = () => map.resize();
     map.on('load', resize);
@@ -196,6 +200,14 @@ const MarketingHomepageTestPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = 'Swallow Homepage';
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
 
   const openForm = () => {
     setFormOpen(true);
@@ -308,14 +320,14 @@ const MarketingHomepageTestPage = () => {
         <section className="mkt-home__hero">
           <div className="mkt-home__hero-copy">
             <h1>
-              Drone Photography.
+              Aerial Imagery.
               <br />
               Made Simple.
             </h1>
             <p>
-              Swallow makes professional aerial imagery and immersive 360°
-              panoramas easy to get for construction projects. Your team gets
-              the views. We take care of the rest.
+              Swallow makes aerial imagery and immersive 360° panoramas easy
+              for construction projects. Your team gets the aerials. We take
+              care of the rest.
             </p>
             <div className="mkt-home__hero-actions">
               <button type="button" className="btn-primary" onClick={openForm}>
@@ -324,7 +336,7 @@ const MarketingHomepageTestPage = () => {
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => scrollToId('viewer')}
+                onClick={() => scrollToId('location')}
               >
                 Explore 360°
               </button>
@@ -336,12 +348,6 @@ const MarketingHomepageTestPage = () => {
                 src={SAMPLE_PANO_URL}
                 className="mkt-home__pano"
               />
-              <div className="mkt-home__pano-locate" aria-hidden="true">
-                <div className="mkt-home__locate-frame">
-                  <SitePlanPreview />
-                  <LocationPin className="mkt-home__plan-pin" />
-                </div>
-              </div>
             </div>
             <p className="mkt-home__pano-caption">Explore a 360° panorama.</p>
           </div>
@@ -353,8 +359,8 @@ const MarketingHomepageTestPage = () => {
               <h2>Know exactly where you&rsquo;re looking.</h2>
               <p>
                 Every panorama is tied to its location on your project drawing
-                and a map. See an immersive view of a specific place — and know
-                where that view sits on the site.
+                and a map, so you always know exactly where you&rsquo;re
+                looking.
               </p>
             </div>
             <div className="mkt-home__location-visuals">
@@ -399,7 +405,10 @@ const MarketingHomepageTestPage = () => {
       </main>
 
       <footer className="mkt-home__footer">
-        <strong>Swallow Construction Technology and Robotics</strong>
+        <p className="mkt-home__footer-brand">Swallow</p>
+        <p className="mkt-home__footer-legal">
+          Construction Technology and Robotics
+        </p>
         <a href="mailto:contact@swallow-ctr.com">contact@swallow-ctr.com</a>
       </footer>
 
