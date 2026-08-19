@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import PanoramaViewer from '../components/photo/PanoramaViewer';
 import apiClient from '../services/api';
+import { STANDARD_STYLE_URL } from '../utils/basemapStyle';
+import {
+  WAYPOINT_MARKER_ACTIVE_FILL,
+  WAYPOINT_MARKER_SIZE_MINI,
+  buildCircleMarkerSvg,
+} from '../utils/waypointMarkerIcons';
 
 const R2_BASE = (
   process.env.REACT_APP_R2_PUBLIC_BASE_URL ||
@@ -8,7 +16,7 @@ const R2_BASE = (
   ''
 ).replace(/\/$/, '');
 
-/** Sample project — waypoint Eleven (sequence 11) active drone 360°. */
+/** Demonstration panorama captured at Mill 19, Pittsburgh. */
 const SAMPLE_PANO_PATH =
   'projects/0bd820dd-9cd2-42f4-8c3d-3a576fbd1a18/photos/ba34fef5-ecf9-46b3-9a60-b6a352586f8f.jpg';
 
@@ -16,37 +24,30 @@ const SAMPLE_PANO_URL = R2_BASE
   ? `${R2_BASE}/${SAMPLE_PANO_PATH}`
   : `https://pub-8a4ba64eef054a38a9bb078be4726e58.r2.dev/${SAMPLE_PANO_PATH}`;
 
-const BENEFITS = [
-  {
-    title: 'Capture',
-    body: 'A qualified drone pilot travels to your jobsite and captures 360° imagery of the site.',
-  },
-  {
-    title: 'Document',
-    body: 'Build a visual record of construction progress over time.',
-  },
-  {
-    title: 'Share',
-    body:
-      "Give project teams, owners, and stakeholders an easy way to see what's happening without being on site.",
-  },
-];
+/** Approximate location of the Mill 19 demonstration capture. */
+const SAMPLE_LOCATION = { lng: -79.9428, lat: 40.4097 };
+
+const LOCATION_PIN_SVG = buildCircleMarkerSvg('drone', {
+  width: WAYPOINT_MARKER_SIZE_MINI.width,
+  height: WAYPOINT_MARKER_SIZE_MINI.height,
+  fillColor: WAYPOINT_MARKER_ACTIVE_FILL,
+});
 
 const STEPS = [
   {
     n: '1',
-    title: 'Capture',
-    body: 'A qualified drone pilot visits your jobsite and captures 360° panoramas.',
+    title: 'Tell us what you need',
+    body: 'Photos, video, 360° views — whatever would help the project.',
   },
   {
     n: '2',
-    title: 'Explore',
-    body: 'View the site interactively in a 360° viewer.',
+    title: 'We capture it',
+    body: 'Swallow takes care of the logistics and prepares the imagery.',
   },
   {
     n: '3',
-    title: 'Track',
-    body: 'Document and share site conditions and progress over time.',
+    title: 'Share with your team',
+    body: 'Get views tied to your project, ready to use and pass on.',
   },
 ];
 
@@ -61,6 +62,131 @@ const EMPTY_FORM = {
 const scrollToId = id => {
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+const LocationPin = ({ className }) => (
+  <span
+    className={className}
+    // Marker SVG is generated from Swallow's own waypoint icon helper.
+    // eslint-disable-next-line react/no-danger
+    dangerouslySetInnerHTML={{ __html: LOCATION_PIN_SVG }}
+    aria-hidden="true"
+  />
+);
+
+/** Stylized site drawing used to show that each panorama has a place on the plan. */
+const SitePlanPreview = () => (
+  <svg
+    className="mkt-home__plan-svg"
+    viewBox="0 0 320 240"
+    role="img"
+    aria-label="Example project drawing with a capture location marked"
+  >
+    <rect width="320" height="240" fill="#e8eef4" />
+    <g stroke="#c5d3e2" strokeWidth="0.6">
+      {Array.from({ length: 15 }, (_, i) => (
+        <line key={`v-${i}`} x1={20 * (i + 1)} y1="0" x2={20 * (i + 1)} y2="240" />
+      ))}
+      {Array.from({ length: 11 }, (_, i) => (
+        <line key={`h-${i}`} x1="0" y1={20 * (i + 1)} x2="320" y2={20 * (i + 1)} />
+      ))}
+    </g>
+    <rect
+      x="28"
+      y="24"
+      width="264"
+      height="192"
+      fill="none"
+      stroke="#1f3a5f"
+      strokeWidth="1.2"
+      strokeDasharray="5 3"
+    />
+    <rect x="18" y="168" width="284" height="28" fill="#d5dee8" />
+    <rect x="18" y="178" width="284" height="8" fill="#c3cedb" />
+    <rect
+      x="48"
+      y="48"
+      width="132"
+      height="88"
+      fill="#b7cde6"
+      stroke="#3f6fa0"
+      strokeWidth="1.4"
+    />
+    <rect
+      x="188"
+      y="56"
+      width="72"
+      height="52"
+      fill="#c9d9eb"
+      stroke="#3f6fa0"
+      strokeWidth="1.4"
+    />
+    <rect
+      x="48"
+      y="148"
+      width="64"
+      height="16"
+      fill="#d7e2ee"
+      stroke="#3f6fa0"
+      strokeWidth="1"
+    />
+    <g fill="none" stroke="#8aa0b8" strokeWidth="0.8">
+      <line x1="196" y1="168" x2="252" y2="168" />
+      <line x1="196" y1="174" x2="252" y2="174" />
+      <line x1="196" y1="180" x2="252" y2="180" />
+      <line x1="196" y1="186" x2="252" y2="186" />
+    </g>
+    <polygon points="292,18 298,32 286,32" fill="#1f3a5f" />
+    <text
+      x="292"
+      y="44"
+      textAnchor="middle"
+      fill="#1f3a5f"
+      fontSize="9"
+      fontFamily="Inter, sans-serif"
+      fontWeight="600"
+    >
+      N
+    </text>
+  </svg>
+);
+
+const SampleLocationMap = () => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return undefined;
+
+    const map = new maplibregl.Map({
+      container: node,
+      style: STANDARD_STYLE_URL,
+      center: [SAMPLE_LOCATION.lng, SAMPLE_LOCATION.lat],
+      zoom: 15.6,
+      interactive: false,
+      attributionControl: false,
+    });
+
+    const pin = document.createElement('div');
+    pin.className = 'mkt-home__map-pin';
+    pin.innerHTML = LOCATION_PIN_SVG;
+    const marker = new maplibregl.Marker({ element: pin, anchor: 'center' })
+      .setLngLat([SAMPLE_LOCATION.lng, SAMPLE_LOCATION.lat])
+      .addTo(map);
+
+    const resize = () => map.resize();
+    map.on('load', resize);
+    const observer = new ResizeObserver(resize);
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+      marker.remove();
+      map.remove();
+    };
+  }, []);
+
+  return <div ref={containerRef} className="mkt-home__map" />;
 };
 
 const MarketingHomepageTestPage = () => {
@@ -146,9 +272,9 @@ const MarketingHomepageTestPage = () => {
               <button
                 type="button"
                 className="App-header__tab"
-                onClick={() => scrollToId('platform')}
+                onClick={() => scrollToId('viewer')}
               >
-                Platform
+                360°
               </button>
               <button
                 type="button"
@@ -172,7 +298,7 @@ const MarketingHomepageTestPage = () => {
               className="mkt-home__banner-cta"
               onClick={openForm}
             >
-              Request a Demo
+              Get Started
             </button>
           </div>
         </div>
@@ -181,22 +307,26 @@ const MarketingHomepageTestPage = () => {
       <main id="top" className="mkt-home__main">
         <section className="mkt-home__hero">
           <div className="mkt-home__hero-copy">
-            <h1>See Your Jobsite From Anywhere.</h1>
+            <h1>
+              Drone Photography.
+              <br />
+              Made Simple.
+            </h1>
             <p>
-              A qualified Swallow pilot visits your construction site to capture
-              immersive 360° drone panoramas — so your team can document and
-              share progress over time.
+              Swallow makes professional aerial imagery and immersive 360°
+              panoramas easy to get for construction projects. Your team gets
+              the views. We take care of the rest.
             </p>
             <div className="mkt-home__hero-actions">
               <button type="button" className="btn-primary" onClick={openForm}>
-                Request a Demo
+                Get Started
               </button>
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => scrollToId('viewer')}
               >
-                See It In Action
+                Explore 360°
               </button>
             </div>
           </div>
@@ -206,29 +336,46 @@ const MarketingHomepageTestPage = () => {
                 src={SAMPLE_PANO_URL}
                 className="mkt-home__pano"
               />
+              <div className="mkt-home__pano-locate" aria-hidden="true">
+                <div className="mkt-home__locate-frame">
+                  <SitePlanPreview />
+                  <LocationPin className="mkt-home__plan-pin" />
+                </div>
+              </div>
             </div>
-            <p className="mkt-home__pano-caption">
-              Explore a 360° panorama captured on an active construction site.
-            </p>
+            <p className="mkt-home__pano-caption">Explore a 360° panorama.</p>
           </div>
         </section>
 
-        <section className="mkt-home__section" id="platform">
-          <h2 className="mkt-home__section-title">Built for construction</h2>
-          <div className="mkt-home__cards">
-            {BENEFITS.map(item => (
-              <article key={item.title} className="mkt-home__card">
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </article>
-            ))}
+        <section className="mkt-home__section mkt-home__section--muted" id="location">
+          <div className="mkt-home__location">
+            <div className="mkt-home__location-copy">
+              <h2>Know exactly where you&rsquo;re looking.</h2>
+              <p>
+                Every panorama is tied to its location on your project drawing
+                and a map. See an immersive view of a specific place — and know
+                where that view sits on the site.
+              </p>
+            </div>
+            <div className="mkt-home__location-visuals">
+              <figure className="mkt-home__locate-card">
+                <div className="mkt-home__locate-frame mkt-home__locate-frame--large">
+                  <SitePlanPreview />
+                  <LocationPin className="mkt-home__plan-pin" />
+                </div>
+                <figcaption>Project drawing</figcaption>
+              </figure>
+              <figure className="mkt-home__locate-card">
+                <div className="mkt-home__locate-frame mkt-home__locate-frame--large">
+                  <SampleLocationMap />
+                </div>
+                <figcaption>Map</figcaption>
+              </figure>
+            </div>
           </div>
         </section>
 
-        <section
-          className="mkt-home__section mkt-home__section--muted"
-          id="how-it-works"
-        >
+        <section className="mkt-home__section" id="how-it-works">
           <h2 className="mkt-home__section-title">How It Works</h2>
           <ol className="mkt-home__steps">
             {STEPS.map(step => (
@@ -244,16 +391,15 @@ const MarketingHomepageTestPage = () => {
         </section>
 
         <section className="mkt-home__cta" id="contact">
-          <h2>Want to see what Swallow can do for your project?</h2>
+          <h2>Have a project in mind?</h2>
           <button type="button" className="btn-primary" onClick={openForm}>
-            Request a Demo
+            Get Started
           </button>
         </section>
       </main>
 
       <footer className="mkt-home__footer">
-        <strong>Swallow</strong>
-        <p>Construction site documentation, reimagined.</p>
+        <strong>Swallow Construction Technology and Robotics</strong>
         <a href="mailto:contact@swallow-ctr.com">contact@swallow-ctr.com</a>
       </footer>
 
@@ -272,7 +418,7 @@ const MarketingHomepageTestPage = () => {
             aria-labelledby="mkt-demo-title"
           >
             <h3 className="modal-header" id="mkt-demo-title">
-              Request a Demo
+              Get Started
             </h3>
             {success ? (
               <div className="mkt-home__success">
