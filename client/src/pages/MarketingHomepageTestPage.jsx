@@ -340,7 +340,7 @@ const MarketingHomepageTestPage = () => {
               />
               <div className="mkt-home__pano-locate" aria-hidden="true">
                 <div className="mkt-home__locate-frame">
-                  <SampleLocationMap />
+                  <SampleLocationMap zoom={12.5} />
                 </div>
               </div>
             </div>
@@ -355,7 +355,7 @@ const MarketingHomepageTestPage = () => {
               <p>
                 Each 360° view is pinned to your project drawing and map, so
                 anyone can see the site and know where they are. Share it with
-                a link or a PDF. No log-ins or limits.
+                a link or a PDF. No logins or limits.
               </p>
             </div>
             <div className="mkt-home__location-visuals">
