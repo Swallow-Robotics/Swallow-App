@@ -286,7 +286,7 @@ const MarketingHomepageTestPage = () => {
                 className="App-header__tab"
                 onClick={() => scrollToId('viewer')}
               >
-                360°
+                Aerials
               </button>
               <button
                 type="button"
@@ -367,18 +367,20 @@ const MarketingHomepageTestPage = () => {
           className="mkt-home__section mkt-home__section--muted"
           id="how-it-works"
         >
-          <h2 className="mkt-home__section-title">How It Works</h2>
-          <ol className="mkt-home__steps">
-            {STEPS.map(step => (
-              <li key={step.n} className="mkt-home__step">
-                <span className="mkt-home__step-n">{step.n}</span>
-                <div>
-                  <h3>{step.title}</h3>
-                  <p>{step.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <div className="mkt-home__section-inner">
+            <h2 className="mkt-home__section-title">How It Works</h2>
+            <ol className="mkt-home__steps">
+              {STEPS.map(step => (
+                <li key={step.n} className="mkt-home__step">
+                  <span className="mkt-home__step-n">{step.n}</span>
+                  <div>
+                    <h3>{step.title}</h3>
+                    <p>{step.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
         </section>
       </main>
 
