@@ -165,6 +165,16 @@ const SampleLocationMap = ({ zoom = 15.6 }) => {
       zoom,
       interactive: false,
       attributionControl: false,
+      transformRequest: (url, resourceType) => {
+        if (
+          resourceType === 'Style' ||
+          resourceType === 'Source' ||
+          resourceType === 'Tile'
+        ) {
+          return { url, headers: {}, credentials: 'omit' };
+        }
+        return undefined;
+      },
     });
 
     const pin = document.createElement('div');
@@ -179,12 +189,15 @@ const SampleLocationMap = ({ zoom = 15.6 }) => {
     marker.getElement().tabIndex = -1;
 
     const resize = () => map.resize();
-    map.on('load', resize);
+    const handleReady = () => resize();
+    map.on('load', handleReady);
+    map.once('idle', handleReady);
     const observer = new ResizeObserver(resize);
     observer.observe(node);
 
     return () => {
       observer.disconnect();
+      map.off('load', handleReady);
       marker.remove();
       map.remove();
     };
@@ -327,7 +340,7 @@ const MarketingHomepageTestPage = () => {
               />
               <div className="mkt-home__pano-locate" aria-hidden="true">
                 <div className="mkt-home__locate-frame">
-                  <SampleLocationMap zoom={12.8} />
+                  <SampleLocationMap />
                 </div>
               </div>
             </div>
@@ -363,22 +376,21 @@ const MarketingHomepageTestPage = () => {
           </div>
         </section>
 
-        <section
-          className="mkt-home__section mkt-home__section--muted"
-          id="how-it-works"
-        >
-          <h2 className="mkt-home__section-title">How It Works</h2>
-          <ol className="mkt-home__steps">
-            {STEPS.map(step => (
-              <li key={step.n} className="mkt-home__step">
-                <span className="mkt-home__step-n">{step.n}</span>
-                <div>
-                  <h3>{step.title}</h3>
-                  <p>{step.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+        <section className="mkt-home__section--muted" id="how-it-works">
+          <div className="mkt-home__section-inner">
+            <h2 className="mkt-home__section-title">How It Works</h2>
+            <ol className="mkt-home__steps">
+              {STEPS.map(step => (
+                <li key={step.n} className="mkt-home__step">
+                  <span className="mkt-home__step-n">{step.n}</span>
+                  <div className="mkt-home__step-copy">
+                    <h3>{step.title}</h3>
+                    <p>{step.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
         </section>
       </main>
 
