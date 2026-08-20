@@ -310,12 +310,13 @@ const MarketingHomepageTestPage = () => {
       </header>
 
       <main id="top" className="mkt-home__main">
-        <section className="mkt-home__hero">
+        <section className="mkt-home__hero mkt-home__container">
           <div className="mkt-home__hero-copy">
             <h1>Construction Aerials Made Simple</h1>
             <p>
-              Aerial photos, video, and 360° panoramas of your project.
-              Swallow handles the logistics.
+              Swallow makes aerial imagery easy for construction projects.
+              Your team gets the Aerial photos, video, and 360° panoramas. We
+              take care of the rest.
             </p>
           </div>
           <div className="mkt-home__hero-viewer" id="viewer">
@@ -335,14 +336,14 @@ const MarketingHomepageTestPage = () => {
           </div>
         </section>
 
-        <section className="mkt-home__section" id="location">
+        <section className="mkt-home__section mkt-home__container" id="location">
           <div className="mkt-home__location">
             <div className="mkt-home__location-copy">
               <h2>Know exactly where you&rsquo;re looking.</h2>
               <p>
                 Each 360° view is pinned to your project drawing and map, so
                 anyone can see the site and know where they are. Share it with
-                a link or a PDF — no accounts.
+                a link or a PDF. No log-ins or limits.
               </p>
             </div>
             <div className="mkt-home__location-visuals">
@@ -363,11 +364,8 @@ const MarketingHomepageTestPage = () => {
           </div>
         </section>
 
-        <section
-          className="mkt-home__section mkt-home__section--muted"
-          id="how-it-works"
-        >
-          <div className="mkt-home__section-inner">
+        <section className="mkt-home__section--muted" id="how-it-works">
+          <div className="mkt-home__container">
             <h2 className="mkt-home__section-title">How It Works</h2>
             <ol className="mkt-home__steps">
               {STEPS.map(step => (
@@ -385,11 +383,13 @@ const MarketingHomepageTestPage = () => {
       </main>
 
       <footer className="mkt-home__footer">
-        <p className="mkt-home__footer-brand">Swallow</p>
-        <p className="mkt-home__footer-legal">
-          Construction Technology and Robotics
-        </p>
-        <a href="mailto:contact@swallow-ctr.com">contact@swallow-ctr.com</a>
+        <div className="mkt-home__container">
+          <p className="mkt-home__footer-brand">Swallow</p>
+          <p className="mkt-home__footer-legal">
+            Construction Technology and Robotics
+          </p>
+          <a href="mailto:contact@swallow-ctr.com">contact@swallow-ctr.com</a>
+        </div>
       </footer>
 
       {formOpen ? (
