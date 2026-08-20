@@ -24,8 +24,8 @@ const SAMPLE_PANO_URL = R2_BASE
   ? `${R2_BASE}/${SAMPLE_PANO_PATH}`
   : `https://pub-8a4ba64eef054a38a9bb078be4726e58.r2.dev/${SAMPLE_PANO_PATH}`;
 
-/** Approximate location of the Mill 19 demonstration capture. */
-const SAMPLE_LOCATION = { lng: -79.9428, lat: 40.4097 };
+/** Location of the Mill 19 demonstration capture. */
+const SAMPLE_LOCATION = { lng: -79.94744, lat: 40.413825 };
 
 const LOCATION_PIN_SVG = buildCircleMarkerSvg('drone', {
   width: WAYPOINT_MARKER_SIZE_MINI.width,
@@ -36,18 +36,18 @@ const LOCATION_PIN_SVG = buildCircleMarkerSvg('drone', {
 const STEPS = [
   {
     n: '1',
-    title: 'Tell us what you need',
-    body: 'Photos, video, 360° aerials.',
+    title: 'Schedule a Visit',
+    body: 'Give us a time that works for the project.',
   },
   {
     n: '2',
-    title: 'We capture it',
-    body: 'Swallow takes care of the logistics and prepares the aerials.',
+    title: 'We Capture It',
+    body: 'Swallow coordinates the visit and delivers the finished aerials.',
   },
   {
     n: '3',
-    title: 'Share with your team',
-    body: 'Get aerials for your project, ready to view and share.',
+    title: 'Share with Your Team',
+    body: 'Send a link or PDF to anyone. No logins.',
   },
 ];
 
@@ -203,7 +203,7 @@ const MarketingHomepageTestPage = () => {
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = 'Swallow Homepage';
+    document.title = 'Swallow';
     return () => {
       document.title = previousTitle;
     };
@@ -295,13 +295,6 @@ const MarketingHomepageTestPage = () => {
               >
                 How It Works
               </button>
-              <button
-                type="button"
-                className="App-header__tab"
-                onClick={() => scrollToId('contact')}
-              >
-                Contact
-              </button>
             </nav>
           </div>
           <div className="App-header__right">
@@ -319,28 +312,11 @@ const MarketingHomepageTestPage = () => {
       <main id="top" className="mkt-home__main">
         <section className="mkt-home__hero">
           <div className="mkt-home__hero-copy">
-            <h1>
-              Aerial Imagery.
-              <br />
-              Made Simple.
-            </h1>
+            <h1>Construction Aerials Made Simple</h1>
             <p>
-              Swallow makes aerial imagery and immersive 360° panoramas easy
-              for construction projects. Your team gets the aerials. We take
-              care of the rest.
+              Aerial photos, video, and 360° panoramas of your project.
+              Swallow handles the logistics.
             </p>
-            <div className="mkt-home__hero-actions">
-              <button type="button" className="btn-primary" onClick={openForm}>
-                Get Started
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => scrollToId('location')}
-              >
-                Explore 360°
-              </button>
-            </div>
           </div>
           <div className="mkt-home__hero-viewer" id="viewer">
             <div className="mkt-home__pano-frame">
@@ -348,19 +324,25 @@ const MarketingHomepageTestPage = () => {
                 src={SAMPLE_PANO_URL}
                 className="mkt-home__pano"
               />
+              <div className="mkt-home__pano-locate" aria-hidden="true">
+                <div className="mkt-home__locate-frame">
+                  <SitePlanPreview />
+                  <LocationPin className="mkt-home__plan-pin" />
+                </div>
+              </div>
             </div>
             <p className="mkt-home__pano-caption">Explore a 360° panorama.</p>
           </div>
         </section>
 
-        <section className="mkt-home__section mkt-home__section--muted" id="location">
+        <section className="mkt-home__section" id="location">
           <div className="mkt-home__location">
             <div className="mkt-home__location-copy">
               <h2>Know exactly where you&rsquo;re looking.</h2>
               <p>
-                Every panorama is tied to its location on your project drawing
-                and a map, so you always know exactly where you&rsquo;re
-                looking.
+                Each 360° view is pinned to your project drawing and map, so
+                anyone can see the site and know where they are. Share it with
+                a link or a PDF — no accounts.
               </p>
             </div>
             <div className="mkt-home__location-visuals">
@@ -381,7 +363,10 @@ const MarketingHomepageTestPage = () => {
           </div>
         </section>
 
-        <section className="mkt-home__section" id="how-it-works">
+        <section
+          className="mkt-home__section mkt-home__section--muted"
+          id="how-it-works"
+        >
           <h2 className="mkt-home__section-title">How It Works</h2>
           <ol className="mkt-home__steps">
             {STEPS.map(step => (
@@ -394,13 +379,6 @@ const MarketingHomepageTestPage = () => {
               </li>
             ))}
           </ol>
-        </section>
-
-        <section className="mkt-home__cta" id="contact">
-          <h2>Have a project in mind?</h2>
-          <button type="button" className="btn-primary" onClick={openForm}>
-            Get Started
-          </button>
         </section>
       </main>
 
