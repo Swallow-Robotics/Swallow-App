@@ -151,7 +151,7 @@ const SitePlanPreview = () => (
   </svg>
 );
 
-const SampleLocationMap = () => {
+const SampleLocationMap = ({ zoom = 15.6 }) => {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -162,7 +162,7 @@ const SampleLocationMap = () => {
       container: node,
       style: STANDARD_STYLE_URL,
       center: [SAMPLE_LOCATION.lng, SAMPLE_LOCATION.lat],
-      zoom: 15.6,
+      zoom,
       interactive: false,
       attributionControl: false,
     });
@@ -188,7 +188,7 @@ const SampleLocationMap = () => {
       marker.remove();
       map.remove();
     };
-  }, []);
+  }, [zoom]);
 
   return <div ref={containerRef} className="mkt-home__map" />;
 };
@@ -310,7 +310,7 @@ const MarketingHomepageTestPage = () => {
       </header>
 
       <main id="top" className="mkt-home__main">
-        <section className="mkt-home__hero mkt-home__container">
+        <section className="mkt-home__hero">
           <div className="mkt-home__hero-copy">
             <h1>Construction Aerials Made Simple</h1>
             <p>
@@ -327,8 +327,7 @@ const MarketingHomepageTestPage = () => {
               />
               <div className="mkt-home__pano-locate" aria-hidden="true">
                 <div className="mkt-home__locate-frame">
-                  <SitePlanPreview />
-                  <LocationPin className="mkt-home__plan-pin" />
+                  <SampleLocationMap zoom={12.8} />
                 </div>
               </div>
             </div>
@@ -336,7 +335,7 @@ const MarketingHomepageTestPage = () => {
           </div>
         </section>
 
-        <section className="mkt-home__section mkt-home__container" id="location">
+        <section className="mkt-home__section" id="location">
           <div className="mkt-home__location">
             <div className="mkt-home__location-copy">
               <h2>Know exactly where you&rsquo;re looking.</h2>
@@ -364,33 +363,42 @@ const MarketingHomepageTestPage = () => {
           </div>
         </section>
 
-        <section className="mkt-home__section--muted" id="how-it-works">
-          <div className="mkt-home__container">
-            <h2 className="mkt-home__section-title">How It Works</h2>
-            <ol className="mkt-home__steps">
-              {STEPS.map(step => (
-                <li key={step.n} className="mkt-home__step">
-                  <span className="mkt-home__step-n">{step.n}</span>
-                  <div>
-                    <h3>{step.title}</h3>
-                    <p>{step.body}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
+        <section
+          className="mkt-home__section mkt-home__section--muted"
+          id="how-it-works"
+        >
+          <h2 className="mkt-home__section-title">How It Works</h2>
+          <ol className="mkt-home__steps">
+            {STEPS.map(step => (
+              <li key={step.n} className="mkt-home__step">
+                <span className="mkt-home__step-n">{step.n}</span>
+                <div>
+                  <h3>{step.title}</h3>
+                  <p>{step.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
       </main>
 
       <footer className="mkt-home__footer">
-        <div className="mkt-home__container">
-          <p className="mkt-home__footer-brand">Swallow</p>
-          <p className="mkt-home__footer-legal">
-            Construction Technology and Robotics
-          </p>
-          <a href="mailto:contact@swallow-ctr.com">contact@swallow-ctr.com</a>
-        </div>
+        <p className="mkt-home__footer-brand">Swallow</p>
+        <p className="mkt-home__footer-legal">
+          Construction Technology and Robotics
+        </p>
+        <a href="mailto:contact@swallow-ctr.com">contact@swallow-ctr.com</a>
       </footer>
+
+      <div className="mkt-home__mobile-cta-bar">
+        <button
+          type="button"
+          className="mkt-home__mobile-cta"
+          onClick={openForm}
+        >
+          Get Started
+        </button>
+      </div>
 
       {formOpen ? (
         <div
